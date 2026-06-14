@@ -1,0 +1,9 @@
+{
+  "short_name": "Abariisa",
+  "name": "Abariisa - Smart Farm Management System",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#166534",
+  "background_color": "#f8fafc"
+}
