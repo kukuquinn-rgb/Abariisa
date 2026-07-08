@@ -11,6 +11,8 @@ const taskRoutes = require('./routes/tasks');
 const attendanceRoutes = require('./routes/attendance');
 const notificationRoutes = require('./routes/notifications');
 const inviteRoutes = require('./routes/invites');
+const trustScoreRoutes = require('./routes/trustScores');
+const { startScheduler } = require('./scheduler');
 
 const app = express();
 
@@ -27,6 +29,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/invites', inviteRoutes);
+app.use('/api/trust-scores', trustScoreRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'Abariisa API running' }));
@@ -47,7 +50,10 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB connected');
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      startScheduler();
+    });
   })
   .catch((err) => {
     console.error('❌ MongoDB connection failed:', err.message);

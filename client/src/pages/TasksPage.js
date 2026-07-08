@@ -65,7 +65,11 @@ export default function TasksPage() {
       setForm(EMPTY_FORM);
       fetchTasks();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create task');
+      if (err.response?.data?.blocked) {
+        toast.error(`Cannot assign: worker's Trust Score (${err.response.data.workerScore}%) is below the ${err.response.data.threshold}% minimum threshold for high-priority tasks.`);
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to create task');
+      }
     } finally { setSaving(false); }
   };
 

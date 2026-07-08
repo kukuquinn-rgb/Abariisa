@@ -1,10 +1,23 @@
 const Task = require('../models/Task');
 const TrustScore = require('../models/TrustScore');
 const Notification = require('../models/Notification');
+const SystemConfig = require('../models/SystemConfig');
+
+const DEFAULT_THRESHOLDS = {
+  blockHighPriorityBelow: 40,
+  flagHighRisk: 50,
+  flagMediumRisk: 70
+};
+
+const getThresholds = async () => {
+  const config = await SystemConfig.findOne({ key: 'trust_thresholds' });
+  const configuredValue = config?.value && typeof config.value === 'object' ? config.value : {};
+  return { ...DEFAULT_THRESHOLDS, ...configuredValue };
+};
 
 // Helper: recalculate trust score after task event
 const recalculateTrustScore = async (workerId) => {
-  let trustScore = await TrustScore.findOne({ worker: workerId });
+  const trustScore = await TrustScore.findOne({ worker: workerId });
   if (!trustScore) return;
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -71,20 +84,36 @@ const getTask = async (req, res) => {
 // @route  POST /api/tasks
 const createTask = async (req, res) => {
   try {
-    // Check worker trust score before assigning high-priority task
     const { assignedTo, priority } = req.body;
+    const thresholds = await getThresholds();
+    let riskFlag = null;
+
     if (priority === 'High') {
       const ts = await TrustScore.findOne({ worker: assignedTo });
-      if (ts && ts.overallScore < 50) {
-        req.body.riskFlag = 'High';
-      } else if (ts && ts.overallScore < 70) {
-        req.body.riskFlag = 'Medium';
+      const workerScore = ts?.overallScore ?? 100;
+
+      if (workerScore < thresholds.blockHighPriorityBelow) {
+        return res.status(403).json({
+          message: `Cannot assign high-priority task. Worker Trust Score (${workerScore}%) is below the minimum threshold of ${thresholds.blockHighPriorityBelow}% for this action.`,
+          blocked: true,
+          workerScore,
+          threshold: thresholds.blockHighPriorityBelow
+        });
       }
+
+      riskFlag = workerScore < thresholds.flagHighRisk
+        ? 'High'
+        : workerScore < thresholds.flagMediumRisk
+          ? 'Medium'
+          : 'Low';
+    } else if (priority === 'Medium') {
+      const ts = await TrustScore.findOne({ worker: assignedTo });
+      const workerScore = ts?.overallScore ?? 100;
+      riskFlag = workerScore < thresholds.flagHighRisk ? 'Medium' : null;
     }
 
-    const task = await Task.create({ ...req.body, assignedBy: req.user.id });
+    const task = await Task.create({ ...req.body, assignedBy: req.user.id, riskFlag });
 
-    // Notify the assigned worker
     await Notification.create({
       recipient: assignedTo,
       type: 'task_assigned',
@@ -92,6 +121,18 @@ const createTask = async (req, res) => {
       message: `You have been assigned: "${task.title}" — due ${new Date(task.dueDate).toLocaleDateString()}`,
       relatedTask: task._id
     });
+
+    if (riskFlag === 'High' || riskFlag === 'Medium') {
+      const workerScore = (await TrustScore.findOne({ worker: assignedTo }))?.overallScore ?? 'N/A';
+      await Notification.create({
+        recipient: req.user.id,
+        type: 'risk_alert',
+        title: `${riskFlag} Risk Task Flagged`,
+        message: `Task "${task.title}" was flagged as ${riskFlag.toLowerCase()} risk for worker ${assignedTo}. Current trust score: ${workerScore}%.`,
+        relatedTask: task._id,
+        relatedWorker: assignedTo
+      });
+    }
 
     const populated = await task.populate([
       { path: 'assignedTo', select: 'name email' },
@@ -173,4 +214,88 @@ const getTaskStats = async (req, res) => {
   }
 };
 
-module.exports = { getTasks, getTask, createTask, updateTask, deleteTask, getTaskStats };
+const getRiskSummary = async (req, res) => {
+  try {
+    const riskTasks = await Task.find({
+      status: { $ne: 'Completed' },
+      riskFlag: { $in: ['High', 'Medium'] }
+    })
+      .populate('assignedTo', 'name trustScore')
+      .populate('assignedBy', 'name')
+      .sort({ riskFlag: 1, dueDate: 1 })
+      .limit(10);
+
+    const riskCountsRaw = await Task.aggregate([
+      { $match: { status: { $ne: 'Completed' }, riskFlag: { $in: ['High', 'Medium', 'Low'] } } },
+      { $group: { _id: '$riskFlag', count: { $sum: 1 } } }
+    ]);
+
+    const riskCounts = { High: 0, Medium: 0, Low: 0 };
+    riskCountsRaw.forEach((item) => {
+      if (riskCounts[item._id] !== undefined) {
+        riskCounts[item._id] = item.count;
+      }
+    });
+
+    res.json({ riskTasks, riskCounts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getThresholdsRoute = async (req, res) => {
+  try {
+    res.json(await getThresholds());
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateThresholds = async (req, res) => {
+  try {
+    const { blockHighPriorityBelow, flagHighRisk, flagMediumRisk } = req.body;
+    const values = [blockHighPriorityBelow, flagHighRisk, flagMediumRisk];
+
+    if (values.some((value) => value === undefined || value === null)) {
+      return res.status(400).json({ message: 'All threshold fields are required.' });
+    }
+
+    const nextThresholds = {
+      blockHighPriorityBelow: Number(blockHighPriorityBelow),
+      flagHighRisk: Number(flagHighRisk),
+      flagMediumRisk: Number(flagMediumRisk)
+    };
+
+    const invalid = Object.values(nextThresholds).some((value) => !Number.isFinite(value) || value < 0 || value > 100);
+    if (invalid) {
+      return res.status(400).json({ message: 'Threshold values must be numbers between 0 and 100.' });
+    }
+
+    const config = await SystemConfig.findOneAndUpdate(
+      { key: 'trust_thresholds' },
+      {
+        key: 'trust_thresholds',
+        value: nextThresholds,
+        updatedBy: req.user.id,
+        description: 'Trust score thresholds'
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ thresholds: config.value });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = {
+  getTasks,
+  getTask,
+  createTask,
+  updateTask,
+  deleteTask,
+  getTaskStats,
+  getRiskSummary,
+  getThresholdsRoute,
+  updateThresholds
+};

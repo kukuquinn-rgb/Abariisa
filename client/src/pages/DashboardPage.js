@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Beef, Users, ClipboardList, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { StatCard, Card, CardHeader, Badge, Spinner, Button } from '../components/dashboard/UI';
+import RiskDashboard from '../components/dashboard/RiskDashboard';
+import TrustScoreLeaderboard from '../components/dashboard/TrustScoreLeaderboard';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import api from '../utils/api';
 import '../components/dashboard/UI.css';
@@ -146,6 +148,13 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+
+      {isManager && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+          <RiskDashboard />
+          <TrustScoreLeaderboard />
+        </div>
+      )}
     </div>
   );
 }
