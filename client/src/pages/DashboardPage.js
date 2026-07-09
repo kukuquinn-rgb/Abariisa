@@ -23,6 +23,37 @@ export default function DashboardPage() {
   const [attendanceActionLoading, setAttendanceActionLoading] = useState(false);
   const [taskActionLoadingId, setTaskActionLoadingId] = useState(null);
 
+  const today = new Date();
+  const todayTasks = workerTasks.filter((task) => isSameDay(task.dueDate, today));
+  const recentTaskList = [...workerTasks]
+    .sort((a, b) => new Date(b.createdAt || b.dueDate) - new Date(a.createdAt || a.dueDate))
+    .slice(0, 5);
+  const thisMonthAttendance = workerAttendance.filter((record) => isSameMonth(record.date, today));
+  const presentCount = thisMonthAttendance.filter((record) => record.status === 'Present').length;
+  const lateCount = thisMonthAttendance.filter((record) => record.status === 'Late').length;
+  const absentCount = thisMonthAttendance.filter((record) => record.status === 'Absent').length;
+  const trustScoreValue = trustScore?.overallScore ?? '—';
+  const trustScoreVariant = trustScoreValue === '—'
+    ? 'default'
+    : trustScoreValue >= 80
+      ? 'success'
+      : trustScoreValue >= 60
+        ? 'warning'
+        : 'danger';
+  const taskByStatus = (status) =>
+    stats?.tasks?.find((s) => s._id === status)?.count ?? 0;
+  const statusBadge = (status) => {
+    const map = {
+      Pending: 'warning', 'In Progress': 'info', Completed: 'success',
+      Overdue: 'danger', Acknowledged: 'default'
+    };
+    return <Badge variant={map[status] || 'default'}>{status}</Badge>;
+  };
+  const priorityBadge = (p) => {
+    const map = { High: 'danger', Medium: 'warning', Low: 'success' };
+    return <Badge variant={map[p] || 'default'} size="sm">{p}</Badge>;
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       if (authLoading) return;
@@ -60,6 +91,10 @@ export default function DashboardPage() {
             api.get('/tasks/stats'),
             api.get('/tasks?limit=5')
           ]);
+
+          if (isManager) {
+            await api.get('/users/workers');
+          }
 
           setStats({
             livestock: livestockStats.data,
@@ -122,24 +157,6 @@ export default function DashboardPage() {
   if (authLoading || loading) return <Spinner size="lg" />;
 
   if (isWorker) {
-    const today = new Date();
-    const todayTasks = workerTasks.filter((task) => isSameDay(task.dueDate, today));
-    const recentTaskList = [...workerTasks]
-      .sort((a, b) => new Date(b.createdAt || b.dueDate) - new Date(a.createdAt || a.dueDate))
-      .slice(0, 5);
-    const thisMonthAttendance = workerAttendance.filter((record) => isSameMonth(record.date, today));
-    const presentCount = thisMonthAttendance.filter((record) => record.status === 'Present').length;
-    const lateCount = thisMonthAttendance.filter((record) => record.status === 'Late').length;
-    const absentCount = thisMonthAttendance.filter((record) => record.status === 'Absent').length;
-    const trustScoreValue = trustScore?.overallScore ?? '—';
-    const trustScoreVariant = trustScoreValue === '—'
-      ? 'default'
-      : trustScoreValue >= 80
-        ? 'success'
-        : trustScoreValue >= 60
-          ? 'warning'
-          : 'danger';
-
     return (
       <div>
         <div className="page-header">
@@ -301,22 +318,6 @@ export default function DashboardPage() {
     );
   }
 
-  const taskByStatus = (status) =>
-    stats?.tasks?.find((s) => s._id === status)?.count ?? 0;
-
-  const statusBadge = (status) => {
-    const map = {
-      Pending: 'warning', 'In Progress': 'info', Completed: 'success',
-      Overdue: 'danger', Acknowledged: 'default'
-    };
-    return <Badge variant={map[status] || 'default'}>{status}</Badge>;
-  };
-
-  const priorityBadge = (p) => {
-    const map = { High: 'danger', Medium: 'warning', Low: 'success' };
-    return <Badge variant={map[p] || 'default'} size="sm">{p}</Badge>;
-  };
-
   return (
     <div>
       <div className="page-header">
@@ -455,15 +456,3 @@ function formatTime(date) {
   return new Date(date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function statusBadge(status) {
-  const map = {
-    Pending: 'warning', 'In Progress': 'info', Completed: 'success',
-    Overdue: 'danger', Acknowledged: 'default'
-  };
-  return <Badge variant={map[status] || 'default'}>{status}</Badge>;
-}
-
-function priorityBadge(priority) {
-  const map = { High: 'danger', Medium: 'warning', Low: 'success' };
-  return <Badge variant={map[priority] || 'default'} size="sm">{priority}</Badge>;
-}
