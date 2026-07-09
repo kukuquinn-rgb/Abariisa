@@ -37,6 +37,7 @@ const NAV_SECTIONS = [
       { to: '/workers', label: 'Workers', icon: Users, roles: ['manager', 'admin'] },
       { to: '/tasks', label: 'Tasks', icon: ClipboardList, roles: ['manager', 'worker', 'admin'] },
       { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['manager', 'worker', 'admin'] }
+      { to: '/reports', label: 'Reports', icon: BarChart2, roles: ['manager', 'admin'] } 
     ]
   },
   {
