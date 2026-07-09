@@ -61,6 +61,12 @@
   font-size: 1.125rem;
 }
 
+.sidebar-brand-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .sidebar-brand-text {
   color: #fff;
   font-size: var(--font-size-lg);
@@ -71,13 +77,63 @@
   transition: opacity var(--transition);
 }
 
-.sidebar.collapsed .sidebar-brand-text { opacity: 0; }
+.sidebar-view-only {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.7rem;
+  margin-top: 2px;
+}
+
+.sidebar.collapsed .sidebar-brand-text,
+.sidebar.collapsed .sidebar-view-only { opacity: 0; width: 0; overflow: hidden; }
+
+.sidebar-nav-wrapper {
+  flex: 1;
+  overflow-y: auto;
+}
 
 .sidebar-nav {
   flex: 1;
   padding: var(--space-4) var(--space-2);
-  overflow-y: auto;
   list-style: none;
+}
+
+.sidebar-nav-collapsed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sidebar-section {
+  margin-top: var(--space-3);
+}
+
+.sidebar-section:first-of-type { margin-top: 0; }
+
+.sidebar-section-header {
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+.sidebar-section-items {
+  overflow: hidden;
+  transition: max-height 0.25s ease-in;
+}
+
+.sidebar-section-items.open { max-height: 400px; }
+.sidebar-section-items.closed { max-height: 0; }
+
+.sidebar-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .sidebar-nav-item { margin-bottom: var(--space-1); }
@@ -90,11 +146,18 @@
   border-radius: var(--radius);
   color: rgba(255,255,255,0.7);
   text-decoration: none;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   font-weight: 500;
-  transition: background var(--transition), color var(--transition);
+  transition: background var(--transition), color var(--transition), border-left-color var(--transition);
   white-space: nowrap;
   overflow: hidden;
+  padding-left: 2rem;
+}
+
+.sidebar-nav-link.collapsed-link {
+  justify-content: center;
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
 }
 
 .sidebar-nav-link:hover {
@@ -105,13 +168,12 @@
 .sidebar-nav-link.active {
   background: var(--color-primary-light);
   color: #fff;
+  border-left: 2px solid var(--color-primary-light);
+  padding-left: calc(2rem - 2px);
 }
 
-.sidebar-nav-divider {
-  height: 1px;
-  background: rgba(255,255,255,0.1);
-  margin: var(--space-2) var(--space-4);
-  list-style: none;
+.sidebar-nav-link.collapsed-link.active {
+  padding-left: calc(var(--space-3) - 2px);
 }
 
 .sidebar-nav-link svg { flex-shrink: 0; width: 18px; height: 18px; }

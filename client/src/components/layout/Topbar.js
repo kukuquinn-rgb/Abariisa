@@ -15,6 +15,7 @@ const PAGE_TITLES = {
   '/tasks': 'Tasks',
   '/attendance': 'Attendance',
   '/notifications': 'Notifications',
+  '/reports': 'Reports & Analytics',
 };
 
 export default function Topbar({ onMenuClick }) {

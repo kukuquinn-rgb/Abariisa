@@ -17,6 +17,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import CollaboratorsPage from './pages/CollaboratorsPage';
+import ReportsPage from './pages/ReportsPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
@@ -82,6 +83,7 @@ const AppRoutes = () => (
       <Route path="workers" element={<ManagerRoute><WorkersPage /></ManagerRoute>} />
       <Route path="workers/:id" element={<ManagerRoute><WorkerProfilePage /></ManagerRoute>} />
       <Route path="collaborators" element={<OperatorRoute><CollaboratorsPage /></OperatorRoute>} />
+      <Route path="reports" element={<ManagerRoute><ReportsPage /></ManagerRoute>} />
     </Route>
 
     <Route path="*" element={<NotFoundPage />} />

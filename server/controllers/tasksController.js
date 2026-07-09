@@ -203,7 +203,10 @@ const deleteTask = async (req, res) => {
 // @route  GET /api/tasks/stats
 const getTaskStats = async (req, res) => {
   try {
-    const filter = req.user.role === 'worker' ? { assignedTo: req.user.id } : {};
+    const mongoose = require('mongoose');
+    const filter = req.user.role === 'worker'
+      ? { assignedTo: new mongoose.Types.ObjectId(req.user.id) }
+      : {};
     const stats = await Task.aggregate([
       { $match: filter },
       { $group: { _id: '$status', count: { $sum: 1 } } }
