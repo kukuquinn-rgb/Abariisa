@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Beef } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
 };
 
 export default function LivestockPage() {
+  const navigate = useNavigate();
   const { isViewOnly } = useAuth();
   const [animals, setAnimals] = useState([]);
   const [stats, setStats] = useState(null);
@@ -60,9 +62,23 @@ export default function LivestockPage() {
     e.preventDefault();
     setSaving(true);
     try {
+      const originalAnimal = editTarget ? animals.find((animal) => animal._id === editTarget) : null;
+      const healthAlertTriggered = Boolean(
+        editTarget
+        && originalAnimal?.healthStatus !== form.healthStatus
+        && ['Sick', 'Quarantined', 'Under Treatment'].includes(form.healthStatus)
+      );
+
       if (editTarget) {
         await api.put(`/livestock/${editTarget}`, form);
-        toast.success('Livestock record updated');
+        if (healthAlertTriggered) {
+          toast('⚠ Health alert created — manager notified and inspection task assigned automatically', {
+            icon: '🚨',
+            duration: 5000
+          });
+        } else {
+          toast.success('Livestock record updated');
+        }
       } else {
         await api.post('/livestock', form);
         toast.success('Livestock record added');
@@ -152,7 +168,15 @@ export default function LivestockPage() {
             <tbody>
               {animals.map((a) => (
                 <tr key={a._id}>
-                  <td><strong>{a.animalId}</strong></td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/livestock/${a._id}`)}
+                      style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-primary)', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {a.animalId}
+                    </button>
+                  </td>
                   <td>{a.species}</td>
                   <td>{a.breed || '—'}</td>
                   <td>{a.gender}</td>
@@ -164,6 +188,7 @@ export default function LivestockPage() {
                   {!isViewOnly && (
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/livestock/${a._id}`)}>View</Button>
                         <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>Edit</Button>
                         <Button variant="ghost" size="sm" onClick={() => handleArchive(a._id, a.animalId)}
                           style={{ color: 'var(--color-danger)' }}>Archive</Button>

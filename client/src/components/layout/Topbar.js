@@ -16,6 +16,9 @@ const PAGE_TITLES = {
   '/attendance': 'Attendance',
   '/notifications': 'Notifications',
   '/reports': 'Reports & Analytics',
+  '/treatments': 'Health Schedule',
+  '/leave': 'Leave Management',
+  '/work-plan': 'Work Plan',
 };
 
 export default function Topbar({ onMenuClick }) {

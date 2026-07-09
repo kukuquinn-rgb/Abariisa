@@ -22,7 +22,7 @@ const TYPE_COLORS = {
   attendance_irregularity: 'warning',
   trust_score_change: 'primary',
   risk_alert: 'danger',
-  livestock_alert: 'warning',
+  livestock_alert: 'danger',
   general: 'default'
 };
 
@@ -107,7 +107,9 @@ export default function NotificationsPage() {
                 <div style={{
                   width: 36, height: 36, borderRadius: 'var(--radius)', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'var(--color-surface)', border: '1px solid var(--color-border)'
+                  background: n.type === 'livestock_alert' ? 'rgba(220, 38, 38, 0.1)' : 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: n.type === 'livestock_alert' ? 'var(--color-danger)' : 'inherit'
                 }} aria-hidden="true">
                   {TYPE_ICONS[n.type] || <Info size={18} />}
                 </div>

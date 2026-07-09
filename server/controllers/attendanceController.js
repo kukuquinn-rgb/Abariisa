@@ -76,6 +76,62 @@ const checkOut = async (req, res) => {
   }
 };
 
+// @desc   Get work hours summary
+// @route  GET /api/attendance/work-hours
+const getWorkHours = async (req, res) => {
+  try {
+    const filter = req.user.role === 'worker'
+      ? { worker: req.user.id }
+      : {};
+
+    const records = await Attendance.find(filter).populate('worker', 'name').sort({ date: -1 });
+
+    const workerSummaries = {};
+    records.forEach((record) => {
+      if (!record.checkOut || !record.checkIn) return;
+      const workerId = record.worker?._id?.toString() || record.worker?.toString();
+      if (!workerId) return;
+
+      const hours = Number(((record.checkOut - record.checkIn) / (1000 * 60 * 60)).toFixed(1));
+      const date = new Date(record.date);
+      const today = new Date();
+      const isThisWeek = date >= new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
+      const isThisMonth = date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+
+      if (!workerSummaries[workerId]) {
+        workerSummaries[workerId] = {
+          worker: { name: record.worker?.name || 'Worker', id: workerId },
+          thisWeek: 0,
+          thisMonth: 0,
+          records: []
+        };
+      }
+
+      if (isThisWeek) workerSummaries[workerId].thisWeek += hours;
+      if (isThisMonth) workerSummaries[workerId].thisMonth += hours;
+      workerSummaries[workerId].records.push({
+        date: record.date,
+        hours
+      });
+    });
+
+    const transformed = Object.values(workerSummaries).map((summary) => ({
+      ...summary,
+      thisWeek: Number(summary.thisWeek.toFixed(1)),
+      thisMonth: Number(summary.thisMonth.toFixed(1)),
+      records: summary.records.slice(0, 7)
+    }));
+
+    if (req.user.role === 'worker') {
+      res.json(transformed[0] || { worker: { name: req.user.name, id: req.user.id }, thisWeek: 0, thisMonth: 0, records: [] });
+    } else {
+      res.json(transformed);
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // @desc   Manager records attendance manually
 // @route  POST /api/attendance
 const createAttendance = async (req, res) => {
@@ -110,4 +166,4 @@ const updateAttendanceTrustScore = async (workerId) => {
   }
 };
 
-module.exports = { getAttendance, checkIn, checkOut, createAttendance };
+module.exports = { getAttendance, checkIn, checkOut, createAttendance, getWorkHours };

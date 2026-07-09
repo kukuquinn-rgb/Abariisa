@@ -18,6 +18,10 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import CollaboratorsPage from './pages/CollaboratorsPage';
 import ReportsPage from './pages/ReportsPage';
+import LivestockDetailPage from './pages/LivestockDetailPage';
+import TreatmentAlertPage from './pages/TreatmentAlertPage';
+import LeavePage from './pages/LeavePage';
+import WorkPlanPage from './pages/WorkPlanPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
@@ -77,6 +81,10 @@ const AppRoutes = () => (
       <Route path="admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
       <Route path="admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
       <Route path="livestock" element={<LivestockPage />} />
+      <Route path="livestock/:id" element={<ManagerRoute><LivestockDetailPage /></ManagerRoute>} />
+      <Route path="treatments" element={<ManagerRoute><TreatmentAlertPage /></ManagerRoute>} />
+      <Route path="leave" element={<PrivateRoute><LeavePage /></PrivateRoute>} />
+      <Route path="work-plan" element={<PrivateRoute><WorkPlanPage /></PrivateRoute>} />
       <Route path="tasks" element={<TasksPage />} />
       <Route path="attendance" element={<AttendancePage />} />
       <Route path="notifications" element={<NotificationsPage />} />

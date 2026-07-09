@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Beef, Users, ClipboardList,
   CalendarCheck, Bell, ChevronLeft, ChevronRight, Leaf,
-  ShieldCheck, UserCog, UserPlus, BarChart2, ChevronDown, ChevronRight as ChevronRightIcon, Eye
+  ShieldCheck, UserCog, UserPlus, BarChart2, ChevronDown, ChevronRight as ChevronRightIcon, Eye, Syringe, CalendarOff, LayoutList
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -37,7 +37,10 @@ const NAV_SECTIONS = [
       { to: '/workers', label: 'Workers', icon: Users, roles: ['manager', 'admin'] },
       { to: '/tasks', label: 'Tasks', icon: ClipboardList, roles: ['manager', 'worker', 'admin'] },
       { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['manager', 'worker', 'admin'] },
-      { to: '/reports', label: 'Reports', icon: BarChart2, roles: ['manager', 'admin'] } 
+      { to: '/reports', label: 'Reports', icon: BarChart2, roles: ['manager', 'admin'] },
+      { to: '/treatments', label: 'Health Schedule', icon: Syringe, roles: ['manager', 'admin'] },
+      { to: '/leave', label: 'Leave', icon: CalendarOff, roles: ['manager', 'worker', 'admin'] },
+      { to: '/work-plan', label: 'Work Plan', icon: LayoutList, roles: ['manager', 'worker', 'admin'] }
     ]
   },
   {
