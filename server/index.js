@@ -11,6 +11,7 @@ const taskRoutes = require('./routes/tasks');
 const attendanceRoutes = require('./routes/attendance');
 const notificationRoutes = require('./routes/notifications');
 const inviteRoutes = require('./routes/invites');
+const trustScoreRoutes = require('./routes/trustScores');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/invites', inviteRoutes);
+app.use('/api/trust-scores', trustScoreRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
