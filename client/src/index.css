@@ -1,10 +1,10 @@
 /* ── Design Tokens ─────────────────────────────────────────────────── */
 :root {
-  /* Brand colours — green palette inspired by agriculture */
-  --color-primary: #166534;
-  --color-primary-light: #22c55e;
-  --color-primary-dark: #14532d;
-  --color-primary-bg: #f0fdf4;
+  /* Brand colours — warm brown/earth palette */
+  --color-primary: #78350f;
+  --color-primary-light: #d97706;
+  --color-primary-dark: #451a03;
+  --color-primary-bg: #fef3c7;
 
   /* Semantic colours */
   --color-success: #16a34a;
