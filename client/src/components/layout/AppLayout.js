@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import ChatBot from '../dashboard/ChatBot';
 import './Layout.css';
 
 export default function AppLayout() {
@@ -14,6 +15,7 @@ export default function AppLayout() {
         <Topbar onMenuClick={() => setSidebarOpen((p) => !p)} />
         <main className="page-content">
           <Outlet />
+          <ChatBot />
         </main>
       </div>
     </div>
