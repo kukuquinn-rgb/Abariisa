@@ -7,23 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const ADMIN_NAV_ITEMS = [
-  { to: '/admin', label: 'Admin Dashboard', icon: ShieldCheck, roles: ['admin'], end: true },
-  { to: '/admin/users', label: 'User Management', icon: UserCog, roles: ['admin'] }
-];
-
 const OPERATOR_NAV_ITEMS = [
   { to: '/collaborators', label: 'Collaborators', icon: UserPlus, roles: ['manager', 'admin'] }
-];
-
-const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['manager', 'worker', 'admin'] },
-  { to: '/livestock', label: 'Livestock', icon: Beef, roles: ['manager', 'admin'] },
-  { to: '/workers', label: 'Workers', icon: Users, roles: ['manager', 'admin'] },
-  { to: '/tasks', label: 'Tasks', icon: ClipboardList, roles: ['manager', 'worker', 'admin'] },
-  { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['manager', 'worker', 'admin'] },
-  { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['manager', 'worker', 'admin'] },
-  { to: '/reports', label: 'Reports', icon: BarChart2, roles: ['manager', 'admin'] }
 ];
 
 const NAV_SECTIONS = [
@@ -32,15 +17,15 @@ const NAV_SECTIONS = [
     label: 'FARM OPERATIONS',
     defaultOpen: true,
     items: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['manager', 'worker', 'admin'] },
-      { to: '/livestock', label: 'Livestock', icon: Beef, roles: ['manager', 'admin'] },
-      { to: '/workers', label: 'Workers', icon: Users, roles: ['manager', 'admin'] },
-      { to: '/tasks', label: 'Tasks', icon: ClipboardList, roles: ['manager', 'worker', 'admin'] },
-      { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['manager', 'worker', 'admin'] },
-      { to: '/reports', label: 'Reports', icon: BarChart2, roles: ['manager', 'admin'] },
-      { to: '/treatments', label: 'Health Schedule', icon: Syringe, roles: ['manager', 'admin'] },
-      { to: '/leave', label: 'Leave', icon: CalendarOff, roles: ['manager', 'worker', 'admin'] },
-      { to: '/work-plan', label: 'Work Plan', icon: LayoutList, roles: ['manager', 'worker', 'admin'] }
+      { to: '/dashboard',  label: 'Dashboard',     icon: LayoutDashboard, roles: ['manager', 'worker', 'admin'] },
+      { to: '/livestock',  label: 'Livestock',      icon: Beef,            roles: ['manager', 'admin'] },
+      { to: '/workers',    label: 'Workers',         icon: Users,           roles: ['manager', 'admin'] },
+      { to: '/tasks',      label: 'Tasks',           icon: ClipboardList,   roles: ['manager', 'worker', 'admin'] },
+      { to: '/attendance', label: 'Attendance',      icon: CalendarCheck,   roles: ['manager', 'worker', 'admin'] },
+      { to: '/reports',    label: 'Reports',         icon: BarChart2,       roles: ['manager', 'admin'] },
+      { to: '/treatments', label: 'Health Schedule', icon: Syringe,         roles: ['manager', 'admin'] },
+      { to: '/leave',      label: 'Leave',           icon: CalendarOff,     roles: ['manager', 'worker', 'admin'] },
+      { to: '/work-plan',  label: 'Work Plan',       icon: LayoutList,      roles: ['manager', 'worker', 'admin'] }
     ]
   },
   {
@@ -56,28 +41,27 @@ const NAV_SECTIONS = [
     label: 'ADMINISTRATION',
     defaultOpen: false,
     items: [
-      { to: '/admin', label: 'Admin Dashboard', icon: ShieldCheck, roles: ['admin'], end: true },
-      { to: '/admin/users', label: 'User Management', icon: UserCog, roles: ['admin'] }
+      { to: '/admin',       label: 'Admin Dashboard', icon: ShieldCheck, roles: ['admin'], end: true },
+      { to: '/admin/users', label: 'User Management', icon: UserCog,     roles: ['admin'] }
     ]
   }
 ];
 
-export default function Sidebar({ open, onToggle }) {
-  const { user, isAdmin, isViewOnly } = useAuth();
-  const [operationsOpen, setOperationsOpen] = useState(true);
+export default function Sidebar({ open, onToggle, mobileOpen, onMobileClose }) {
+  const { user, isViewOnly } = useAuth();
+  const [operationsOpen,    setOperationsOpen]    = useState(true);
   const [communicationOpen, setCommunicationOpen] = useState(false);
-  const [administrationOpen, setAdministrationOpen] = useState(false);
+  const [administrationOpen,setAdministrationOpen]= useState(false);
 
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => !user || item.roles.includes(user.role))
   })).filter((section) => section.items.length > 0);
 
-  const communicationItems = visibleSections.find((section) => section.key === 'communication')?.items || [];
-  const administrationItems = visibleSections.find((section) => section.key === 'administration')?.items || [];
-  const operationsItems = visibleSections.find((section) => section.key === 'operations')?.items || [];
-
-  const collaboratorItems = OPERATOR_NAV_ITEMS.filter((item) => user && item.roles.includes(user.role) && !isViewOnly);
+  const operationsItems    = visibleSections.find((s) => s.key === 'operations')?.items    || [];
+  const communicationItems = visibleSections.find((s) => s.key === 'communication')?.items || [];
+  const administrationItems= visibleSections.find((s) => s.key === 'administration')?.items|| [];
+  const collaboratorItems  = OPERATOR_NAV_ITEMS.filter((item) => user && item.roles.includes(user.role) && !isViewOnly);
 
   const renderNavItems = (items, isCollapsed = false) =>
     items.map(({ to, label, icon: Icon, end }) => (
@@ -85,7 +69,10 @@ export default function Sidebar({ open, onToggle }) {
         <NavLink
           to={to}
           end={end}
-          className={({ isActive }) => `sidebar-nav-link ${isActive ? 'active' : ''} ${isCollapsed ? 'collapsed-link' : ''}`}
+          onClick={onMobileClose}
+          className={({ isActive }) =>
+            `sidebar-nav-link ${isActive ? 'active' : ''} ${isCollapsed ? 'collapsed-link' : ''}`
+          }
           title={isCollapsed ? label : undefined}
         >
           <Icon aria-hidden="true" />
@@ -102,19 +89,25 @@ export default function Sidebar({ open, onToggle }) {
         : administrationOpen;
 
     const toggleOpen = () => {
-      if (section.key === 'operations') setOperationsOpen((value) => !value);
-      if (section.key === 'communication') setCommunicationOpen((value) => !value);
-      if (section.key === 'administration') setAdministrationOpen((value) => !value);
+      if (section.key === 'operations')     setOperationsOpen((v)     => !v);
+      if (section.key === 'communication')  setCommunicationOpen((v)  => !v);
+      if (section.key === 'administration') setAdministrationOpen((v) => !v);
     };
 
     return (
       <div key={section.key} className="sidebar-section">
-        <div className="sidebar-section-header" onClick={toggleOpen} role="button" tabIndex={0} onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            toggleOpen();
-          }
-        }}>
+        <div
+          className="sidebar-section-header"
+          onClick={toggleOpen}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleOpen();
+            }
+          }}
+        >
           <span>{section.label}</span>
           {isOpen ? <ChevronDown size={14} /> : <ChevronRightIcon size={14} />}
         </div>
@@ -128,7 +121,10 @@ export default function Sidebar({ open, onToggle }) {
   };
 
   return (
-    <aside className={`sidebar ${open ? '' : 'collapsed'}`} aria-label="Main navigation">
+    <aside
+      className={`sidebar ${open ? '' : 'collapsed'} ${mobileOpen ? 'mobile-open' : ''}`}
+      aria-label="Main navigation"
+    >
       <div className="sidebar-brand">
         <div className="sidebar-brand-icon" aria-hidden="true">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -166,12 +162,11 @@ export default function Sidebar({ open, onToggle }) {
       <nav className="sidebar-nav-wrapper">
         {open ? (
           <div className="sidebar-nav" role="list">
-            {renderSection({ key: 'operations', label: 'FARM OPERATIONS', items: operationsItems, defaultOpen: true })}
-            {communicationItems.length > 0 && renderSection({ key: 'communication', label: 'COMMUNICATION', items: communicationItems, defaultOpen: false })}
+            {renderSection({ key: 'operations',     label: 'FARM OPERATIONS', items: operationsItems,     defaultOpen: true  })}
+            {communicationItems.length  > 0 && renderSection({ key: 'communication',  label: 'COMMUNICATION',  items: communicationItems,  defaultOpen: false })}
             {administrationItems.length > 0 && renderSection({ key: 'administration', label: 'ADMINISTRATION', items: administrationItems, defaultOpen: false })}
-            {collaboratorItems.length > 0 && (
+            {collaboratorItems.length   > 0 && (
               <div className="sidebar-section">
-                <div className="sidebar-section-header" style={{ pointerEvents: 'none' }} />
                 <div className="sidebar-section-items open">
                   <ul className="sidebar-section-list" role="list">
                     {renderNavItems(collaboratorItems)}
@@ -182,7 +177,12 @@ export default function Sidebar({ open, onToggle }) {
           </div>
         ) : (
           <ul className="sidebar-nav sidebar-nav-collapsed" role="list">
-            {renderNavItems([...operationsItems, ...communicationItems, ...administrationItems, ...collaboratorItems], true)}
+            {renderNavItems([
+              ...operationsItems,
+              ...communicationItems,
+              ...administrationItems,
+              ...collaboratorItems
+            ], true)}
           </ul>
         )}
       </nav>
