@@ -163,7 +163,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Attendance card */}
         <Card className="worker-attendance-card" padding={false}>
           <CardHeader title="Today's Attendance" subtitle={formatFullDate(today)} />
           <div className="worker-attendance-body">
@@ -198,7 +197,6 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* Stat cards */}
         <div className="worker-stats-grid">
           <Card className="worker-stat-card worker-stat-card-green">
             <div className="worker-stat-icon"><ClipboardList size={24} /></div>
@@ -237,7 +235,6 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Worker charts */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
           <Card>
             <CardHeader title="My Attendance — Last 7 Days" />
@@ -271,7 +268,6 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Today's tasks */}
         <Card className="worker-task-section" style={{ marginTop: '1rem' }}>
           <CardHeader title="Today's Tasks" subtitle="Tasks that need your attention today" />
           {todayTasks.length === 0 ? (
@@ -306,7 +302,6 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        {/* Recent tasks */}
         <Card className="worker-task-section" style={{ marginTop: '1rem' }}>
           <CardHeader title="Recent Tasks" subtitle="Your latest task updates" />
           {recentTaskList.length === 0 ? (
@@ -383,6 +378,94 @@ export default function DashboardPage() {
           variant="danger"
         />
       </div>
+
+      {/* ── TODAY VS YESTERDAY ── */}
+      {attendanceTrends.length > 0 && (
+        <div style={{ marginTop: '1rem' }}>
+          <p style={{
+            fontSize: '0.8rem', fontWeight: 600,
+            color: 'var(--color-text-muted)', marginBottom: '0.75rem'
+          }}>
+            Today at a glance — compared to yesterday
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '1rem' }}>
+
+            <div style={{
+              flex: '1 1 130px', minWidth: 0, background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)', borderRadius: 10,
+              padding: '14px 16px', borderLeft: '4px solid #16a34a'
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                Workers present today
+              </p>
+              <p style={{ fontSize: 26, fontWeight: 700, color: '#16a34a', margin: '4px 0' }}>
+                {attendanceTrends[attendanceTrends.length - 1]?.Present ?? '—'}
+              </p>
+              <DeltaLabel
+                today={attendanceTrends[attendanceTrends.length - 1]?.Present}
+                yesterday={attendanceTrends[attendanceTrends.length - 2]?.Present}
+              />
+            </div>
+
+            <div style={{
+              flex: '1 1 130px', minWidth: 0, background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)', borderRadius: 10,
+              padding: '14px 16px', borderLeft: '4px solid #f59e0b'
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                Late or absent today
+              </p>
+              <p style={{ fontSize: 26, fontWeight: 700, color: '#f59e0b', margin: '4px 0' }}>
+                {(() => {
+                  const t = attendanceTrends[attendanceTrends.length - 1];
+                  return t ? (t.Late || 0) + (t.Absent || 0) : '—';
+                })()}
+              </p>
+              <DeltaLabel
+                today={(attendanceTrends[attendanceTrends.length - 1]?.Late || 0) + (attendanceTrends[attendanceTrends.length - 1]?.Absent || 0)}
+                yesterday={(attendanceTrends[attendanceTrends.length - 2]?.Late || 0) + (attendanceTrends[attendanceTrends.length - 2]?.Absent || 0)}
+                invert
+              />
+            </div>
+
+            <div style={{
+              flex: '1 1 130px', minWidth: 0, background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)', borderRadius: 10,
+              padding: '14px 16px', borderLeft: '4px solid #2563eb'
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                Tasks completed today
+              </p>
+              <p style={{ fontSize: 26, fontWeight: 700, color: '#2563eb', margin: '4px 0' }}>
+                {taskTrends[taskTrends.length - 1]?.Completed ?? '—'}
+              </p>
+              <DeltaLabel
+                today={taskTrends[taskTrends.length - 1]?.Completed}
+                yesterday={taskTrends[taskTrends.length - 2]?.Completed}
+              />
+            </div>
+
+            <div style={{
+              flex: '1 1 130px', minWidth: 0, background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)', borderRadius: 10,
+              padding: '14px 16px', borderLeft: '4px solid #dc2626'
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                Tasks overdue today
+              </p>
+              <p style={{ fontSize: 26, fontWeight: 700, color: '#dc2626', margin: '4px 0' }}>
+                {taskTrends[taskTrends.length - 1]?.Overdue ?? '—'}
+              </p>
+              <DeltaLabel
+                today={taskTrends[taskTrends.length - 1]?.Overdue}
+                yesterday={taskTrends[taskTrends.length - 2]?.Overdue}
+                invert
+              />
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Charts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
@@ -497,6 +580,22 @@ export default function DashboardPage() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function DeltaLabel({ today, yesterday, invert = false }) {
+  if (today == null || yesterday == null || isNaN(today) || isNaN(yesterday)) {
+    return <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>— no data</span>;
+  }
+  const delta = today - yesterday;
+  const positive = invert ? delta < 0 : delta > 0;
+  const neutral = delta === 0;
+  const color = neutral ? 'var(--color-text-muted)' : positive ? '#16a34a' : '#dc2626';
+  const arrow = neutral ? '→' : delta > 0 ? '↑' : '↓';
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, color }}>
+      {arrow} {delta > 0 ? '+' : ''}{delta} vs yesterday
+    </span>
+  );
+}
+
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'morning';
