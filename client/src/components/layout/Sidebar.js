@@ -3,117 +3,198 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Beef, Users, ClipboardList,
   CalendarCheck, Bell, ChevronLeft, ChevronRight,
-  ShieldCheck, UserCog, UserPlus, BarChart2, ChevronDown, ChevronRight as ChevronRightIcon, Eye, Syringe, CalendarOff, LayoutList
+  ShieldCheck, UserCog, UserPlus, BarChart2,
+  ChevronDown, ChevronRight as ChevronRightIcon,
+  Syringe, CalendarOff, LayoutList, Briefcase
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const OPERATOR_NAV_ITEMS = [
-  { to: '/collaborators', label: 'Collaborators', icon: UserPlus, roles: ['manager', 'admin'] }
-];
-
-const NAV_SECTIONS = [
+const NAV_STRUCTURE = [
   {
-    key: 'operations',
-    label: 'FARM OPERATIONS',
-    defaultOpen: true,
+    key: 'dashboard',
+    type: 'link',
+    to: '/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: ['manager', 'worker', 'admin'],
+    end: true,
+  },
+  {
+    key: 'livestock',
+    type: 'group',
+    label: 'LIVESTOCK',
+    icon: Beef,
+    roles: ['manager', 'admin'],
+    defaultOpen: false,
     items: [
-      { to: '/dashboard',  label: 'Dashboard',     icon: LayoutDashboard, roles: ['manager', 'worker', 'admin'] },
-      { to: '/livestock',  label: 'Livestock',      icon: Beef,            roles: ['manager', 'admin'] },
-      { to: '/workers',    label: 'Workers',         icon: Users,           roles: ['manager', 'admin'] },
-      { to: '/tasks',      label: 'Tasks',           icon: ClipboardList,   roles: ['manager', 'worker', 'admin'] },
-      { to: '/attendance', label: 'Attendance',      icon: CalendarCheck,   roles: ['manager', 'worker', 'admin'] },
-      { to: '/reports',    label: 'Reports',         icon: BarChart2,       roles: ['manager', 'admin'] },
-      { to: '/treatments', label: 'Health Schedule', icon: Syringe,         roles: ['manager', 'admin'] },
-      { to: '/leave',      label: 'Leave',           icon: CalendarOff,     roles: ['manager', 'worker', 'admin'] },
-      { to: '/work-plan',  label: 'Work Plan',       icon: LayoutList,      roles: ['manager', 'worker', 'admin'] }
+      { to: '/livestock',   label: 'All Animals',     icon: Beef,    roles: ['manager', 'admin'] },
+      { to: '/treatments',  label: 'Health Schedule', icon: Syringe, roles: ['manager', 'admin'] },
     ]
   },
   {
-    key: 'communication',
-    label: 'COMMUNICATION',
+    key: 'workforce',
+    type: 'group',
+    label: 'WORKFORCE',
+    icon: Users,
+    roles: ['manager', 'admin'],
     defaultOpen: false,
     items: [
-      { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['manager', 'worker', 'admin'] }
+      { to: '/workers',    label: 'Workers',    icon: Users,        roles: ['manager', 'admin'] },
+      { to: '/attendance', label: 'Attendance', icon: CalendarCheck,roles: ['manager', 'admin'] },
+      { to: '/leave',      label: 'Leave',      icon: CalendarOff,  roles: ['manager', 'admin'] },
     ]
+  },
+  {
+    key: 'worker-tools',
+    type: 'group',
+    label: 'MY WORK',
+    icon: Briefcase,
+    roles: ['worker'],
+    defaultOpen: true,
+    items: [
+      { to: '/tasks',      label: 'My Tasks',    icon: ClipboardList, roles: ['worker'] },
+      { to: '/attendance', label: 'Attendance',  icon: CalendarCheck, roles: ['worker'] },
+      { to: '/leave',      label: 'Leave',       icon: CalendarOff,   roles: ['worker'] },
+      { to: '/work-plan',  label: 'Work Plan',   icon: LayoutList,    roles: ['worker'] },
+    ]
+  },
+  {
+    key: 'tasks',
+    type: 'group',
+    label: 'TASKS',
+    icon: ClipboardList,
+    roles: ['manager', 'admin'],
+    defaultOpen: false,
+    items: [
+      { to: '/tasks',     label: 'All Tasks',  icon: ClipboardList, roles: ['manager', 'admin'] },
+      { to: '/work-plan', label: 'Work Plan',  icon: LayoutList,    roles: ['manager', 'admin'] },
+    ]
+  },
+  {
+    key: 'reports',
+    type: 'link',
+    to: '/reports',
+    label: 'Reports',
+    icon: BarChart2,
+    roles: ['manager', 'admin'],
+  },
+  {
+    key: 'notifications',
+    type: 'link',
+    to: '/notifications',
+    label: 'Notifications',
+    icon: Bell,
+    roles: ['manager', 'worker', 'admin'],
+  },
+  {
+    key: 'collaborators',
+    type: 'link',
+    to: '/collaborators',
+    label: 'Collaborators',
+    icon: UserPlus,
+    roles: ['manager', 'admin'],
+    viewOnlyHidden: true,
   },
   {
     key: 'administration',
+    type: 'group',
     label: 'ADMINISTRATION',
+    icon: ShieldCheck,
+    roles: ['admin'],
     defaultOpen: false,
     items: [
       { to: '/admin',       label: 'Admin Dashboard', icon: ShieldCheck, roles: ['admin'], end: true },
-      { to: '/admin/users', label: 'User Management', icon: UserCog,     roles: ['admin'] }
+      { to: '/admin/users', label: 'User Management', icon: UserCog,     roles: ['admin'] },
     ]
-  }
+  },
 ];
 
 export default function Sidebar({ open, onToggle, mobileOpen, onMobileClose }) {
   const { user, isViewOnly } = useAuth();
-  const [operationsOpen,    setOperationsOpen]    = useState(true);
-  const [communicationOpen, setCommunicationOpen] = useState(false);
-  const [administrationOpen,setAdministrationOpen]= useState(false);
 
-  const visibleSections = NAV_SECTIONS.map((section) => ({
-    ...section,
-    items: section.items.filter((item) => !user || item.roles.includes(user.role))
-  })).filter((section) => section.items.length > 0);
+  // Track open state for each group
+  const [openGroups, setOpenGroups] = useState(() => {
+    const initial = {};
+    NAV_STRUCTURE.forEach((item) => {
+      if (item.type === 'group') {
+        initial[item.key] = item.defaultOpen ?? false;
+      }
+    });
+    return initial;
+  });
 
-  const operationsItems    = visibleSections.find((s) => s.key === 'operations')?.items    || [];
-  const communicationItems = visibleSections.find((s) => s.key === 'communication')?.items || [];
-  const administrationItems= visibleSections.find((s) => s.key === 'administration')?.items|| [];
-  const collaboratorItems  = OPERATOR_NAV_ITEMS.filter((item) => user && item.roles.includes(user.role) && !isViewOnly);
+  const toggleGroup = (key) => {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
-  const renderNavItems = (items, isCollapsed = false) =>
-    items.map(({ to, label, icon: Icon, end }) => (
-      <li key={to} className="sidebar-nav-item">
-        <NavLink
-          to={to}
-          end={end}
-          onClick={onMobileClose}
-          className={({ isActive }) =>
-            `sidebar-nav-link ${isActive ? 'active' : ''} ${isCollapsed ? 'collapsed-link' : ''}`
-          }
-          title={isCollapsed ? label : undefined}
-        >
-          <Icon aria-hidden="true" />
-          {!isCollapsed && <span className="sidebar-nav-label">{label}</span>}
-        </NavLink>
-      </li>
-    ));
+  // Filter nav structure by role
+  const visibleNav = NAV_STRUCTURE
+    .filter((item) => {
+      if (!user) return false;
+      if (!item.roles.includes(user.role)) return false;
+      if (item.viewOnlyHidden && isViewOnly) return false;
+      return true;
+    })
+    .map((item) => {
+      if (item.type === 'group') {
+        return {
+          ...item,
+          items: item.items.filter((sub) => !user || sub.roles.includes(user.role))
+        };
+      }
+      return item;
+    })
+    .filter((item) => item.type !== 'group' || item.items.length > 0);
 
-  const renderSection = (section) => {
-    const isOpen = section.key === 'operations'
-      ? operationsOpen
-      : section.key === 'communication'
-        ? communicationOpen
-        : administrationOpen;
+  // All flat items for collapsed icon-only view
+  const allFlatItems = visibleNav.flatMap((item) =>
+    item.type === 'link' ? [item] : item.items.map((sub) => ({ ...sub }))
+  );
 
-    const toggleOpen = () => {
-      if (section.key === 'operations')     setOperationsOpen((v)     => !v);
-      if (section.key === 'communication')  setCommunicationOpen((v)  => !v);
-      if (section.key === 'administration') setAdministrationOpen((v) => !v);
-    };
+  const renderLink = (item, isCollapsed = false) => (
+    <li key={item.to} className="sidebar-nav-item">
+      <NavLink
+        to={item.to}
+        end={item.end}
+        onClick={onMobileClose}
+        className={({ isActive }) =>
+          `sidebar-nav-link ${isActive ? 'active' : ''} ${isCollapsed ? 'collapsed-link' : ''}`
+        }
+        title={isCollapsed ? item.label : undefined}
+      >
+        <item.icon aria-hidden="true" />
+        {!isCollapsed && <span className="sidebar-nav-label">{item.label}</span>}
+      </NavLink>
+    </li>
+  );
 
+  const renderGroup = (item) => {
+    const isOpen = openGroups[item.key];
     return (
-      <div key={section.key} className="sidebar-section">
+      <div key={item.key} className="sidebar-section">
         <div
           className="sidebar-section-header"
-          onClick={toggleOpen}
+          onClick={() => toggleGroup(item.key)}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              toggleOpen();
+              toggleGroup(item.key);
             }
           }}
         >
-          <span>{section.label}</span>
-          {isOpen ? <ChevronDown size={14} /> : <ChevronRightIcon size={14} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <item.icon size={13} aria-hidden="true" />
+            <span>{item.label}</span>
+          </div>
+          {isOpen
+            ? <ChevronDown size={13} />
+            : <ChevronRightIcon size={13} />}
         </div>
         <div className={`sidebar-section-items ${isOpen ? 'open' : 'closed'}`}>
           <ul className="sidebar-section-list" role="list">
-            {renderNavItems(section.items)}
+            {item.items.map((sub) => renderLink(sub))}
           </ul>
         </div>
       </div>
@@ -125,6 +206,7 @@ export default function Sidebar({ open, onToggle, mobileOpen, onMobileClose }) {
       className={`sidebar ${open ? '' : 'collapsed'} ${mobileOpen ? 'mobile-open' : ''}`}
       aria-label="Main navigation"
     >
+      {/* Brand */}
       <div className="sidebar-brand">
         <div className="sidebar-brand-icon" aria-hidden="true">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -159,34 +241,26 @@ export default function Sidebar({ open, onToggle, mobileOpen, onMobileClose }) {
         </div>
       </div>
 
+      {/* Nav */}
       <nav className="sidebar-nav-wrapper">
         {open ? (
           <div className="sidebar-nav" role="list">
-            {renderSection({ key: 'operations',     label: 'FARM OPERATIONS', items: operationsItems,     defaultOpen: true  })}
-            {communicationItems.length  > 0 && renderSection({ key: 'communication',  label: 'COMMUNICATION',  items: communicationItems,  defaultOpen: false })}
-            {administrationItems.length > 0 && renderSection({ key: 'administration', label: 'ADMINISTRATION', items: administrationItems, defaultOpen: false })}
-            {collaboratorItems.length   > 0 && (
-              <div className="sidebar-section">
-                <div className="sidebar-section-items open">
-                  <ul className="sidebar-section-list" role="list">
-                    {renderNavItems(collaboratorItems)}
+            {visibleNav.map((item) =>
+              item.type === 'link'
+                ? <ul key={item.key} className="sidebar-section-list" role="list" style={{ marginBottom: 2 }}>
+                    {renderLink(item)}
                   </ul>
-                </div>
-              </div>
+                : renderGroup(item)
             )}
           </div>
         ) : (
           <ul className="sidebar-nav sidebar-nav-collapsed" role="list">
-            {renderNavItems([
-              ...operationsItems,
-              ...communicationItems,
-              ...administrationItems,
-              ...collaboratorItems
-            ], true)}
+            {allFlatItems.map((item) => renderLink(item, true))}
           </ul>
         )}
       </nav>
 
+      {/* Toggle button */}
       <div className="sidebar-toggle">
         <button
           className="sidebar-toggle-btn"
