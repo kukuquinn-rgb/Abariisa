@@ -7,7 +7,7 @@ import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import api from '../utils/api';
 import './AuthPages.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = '218840273638-6am9ek9q87ji5gjsfug2ienb3cbelcdj.apps.googleusercontent.com';
 
 export default function LoginPage() {
   const { login, loginWithToken } = useAuth();
@@ -99,7 +99,7 @@ export default function LoginPage() {
               <span>or sign in with email</span>
             </div>
 
-            {/* Email/password form — unchanged */}
+            {/* Email/password form */}
             <form onSubmit={handleSubmit} noValidate>
               <div className="auth-fields">
                 <Input
