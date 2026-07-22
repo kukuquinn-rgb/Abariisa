@@ -48,7 +48,6 @@ const getTasks = async (req, res) => {
     const { status, priority, assignedTo, riskFlag } = req.query;
     const filter = {};
 
-    // Workers can only see their own tasks
     if (req.user.role === 'worker') filter.assignedTo = req.user.id;
     if (assignedTo && req.user.role !== 'worker') filter.assignedTo = assignedTo;
     if (status) filter.status = status;
@@ -152,12 +151,10 @@ const updateTask = async (req, res) => {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // Workers can only update their own tasks
     if (req.user.role === 'worker' && task.assignedTo.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorised to update this task' });
     }
 
-    // Mark completion time
     if (req.body.status === 'Completed' && task.status !== 'Completed') {
       req.body.completedAt = new Date();
     }
@@ -165,11 +162,9 @@ const updateTask = async (req, res) => {
     Object.assign(task, req.body);
     await task.save();
 
-    // Recalculate trust score when a task is completed or marked overdue
     if (['Completed', 'Overdue'].includes(task.status)) {
       await recalculateTrustScore(task.assignedTo);
 
-      // Notify the manager
       const managerId = task.assignedBy;
       await Notification.create({
         recipient: managerId,
@@ -217,6 +212,8 @@ const getTaskStats = async (req, res) => {
   }
 };
 
+// @desc   Get risk summary
+// @route  GET /api/tasks/risk-summary
 const getRiskSummary = async (req, res) => {
   try {
     const riskTasks = await Task.find({
@@ -246,6 +243,8 @@ const getRiskSummary = async (req, res) => {
   }
 };
 
+// @desc   Get thresholds
+// @route  GET /api/tasks/thresholds
 const getThresholdsRoute = async (req, res) => {
   try {
     res.json(await getThresholds());
@@ -254,6 +253,8 @@ const getThresholdsRoute = async (req, res) => {
   }
 };
 
+// @desc   Update thresholds
+// @route  PUT /api/tasks/thresholds
 const updateThresholds = async (req, res) => {
   try {
     const { blockHighPriorityBelow, flagHighRisk, flagMediumRisk } = req.body;
@@ -269,7 +270,9 @@ const updateThresholds = async (req, res) => {
       flagMediumRisk: Number(flagMediumRisk)
     };
 
-    const invalid = Object.values(nextThresholds).some((value) => !Number.isFinite(value) || value < 0 || value > 100);
+    const invalid = Object.values(nextThresholds).some(
+      (value) => !Number.isFinite(value) || value < 0 || value > 100
+    );
     if (invalid) {
       return res.status(400).json({ message: 'Threshold values must be numbers between 0 and 100.' });
     }
@@ -291,6 +294,64 @@ const updateThresholds = async (req, res) => {
   }
 };
 
+// @desc   Get task completion trends for last 7 days
+// @route  GET /api/tasks/trends
+const getTaskTrends = async (req, res) => {
+  try {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - i);
+      days.push(date);
+    }
+
+    const filter = req.user.role === 'worker'
+      ? { assignedTo: req.user.id }
+      : {};
+
+    const results = await Promise.all(
+      days.map(async (day) => {
+        const nextDay = new Date(day);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const [completed, overdue, pending] = await Promise.all([
+          Task.countDocuments({
+            ...filter,
+            status: 'Completed',
+            completedAt: { $gte: day, $lt: nextDay }
+          }),
+          Task.countDocuments({
+            ...filter,
+            status: 'Overdue',
+            dueDate: { $gte: day, $lt: nextDay }
+          }),
+          Task.countDocuments({
+            ...filter,
+            status: { $in: ['Pending', 'In Progress'] },
+            dueDate: { $gte: day, $lt: nextDay }
+          }),
+        ]);
+
+        return {
+          date: day.toLocaleDateString('en-GB', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short'
+          }),
+          Completed: completed,
+          Overdue: overdue,
+          Pending: pending,
+        };
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getTasks,
   getTask,
@@ -300,5 +361,6 @@ module.exports = {
   getTaskStats,
   getRiskSummary,
   getThresholdsRoute,
-  updateThresholds
+  updateThresholds,
+  getTaskTrends,
 };

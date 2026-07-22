@@ -38,7 +38,7 @@ const checkIn = async (req, res) => {
     if (existing) return res.status(400).json({ message: 'Already checked in today' });
 
     const scheduledStart = new Date();
-    scheduledStart.setHours(7, 0, 0, 0); // Default 7 AM start
+    scheduledStart.setHours(7, 0, 0, 0);
 
     const record = await Attendance.create({
       worker: req.user.id,
@@ -48,7 +48,6 @@ const checkIn = async (req, res) => {
       recordedBy: req.user.id
     });
 
-    // Update attendance trust score component
     await updateAttendanceTrustScore(req.user.id);
 
     res.status(201).json(record);
@@ -80,9 +79,7 @@ const checkOut = async (req, res) => {
 // @route  GET /api/attendance/work-hours
 const getWorkHours = async (req, res) => {
   try {
-    const filter = req.user.role === 'worker'
-      ? { worker: req.user.id }
-      : {};
+    const filter = req.user.role === 'worker' ? { worker: req.user.id } : {};
 
     const records = await Attendance.find(filter).populate('worker', 'name').sort({ date: -1 });
 
@@ -109,10 +106,7 @@ const getWorkHours = async (req, res) => {
 
       if (isThisWeek) workerSummaries[workerId].thisWeek += hours;
       if (isThisMonth) workerSummaries[workerId].thisMonth += hours;
-      workerSummaries[workerId].records.push({
-        date: record.date,
-        hours
-      });
+      workerSummaries[workerId].records.push({ date: record.date, hours });
     });
 
     const transformed = Object.values(workerSummaries).map((summary) => ({
@@ -144,6 +138,45 @@ const createAttendance = async (req, res) => {
   }
 };
 
+// @desc   Get attendance trends for last 7 days
+// @route  GET /api/attendance/trends
+const getAttendanceTrends = async (req, res) => {
+  try {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - i);
+      days.push(date);
+    }
+
+    const filter = req.user.role === 'worker' ? { worker: req.user.id } : {};
+
+    const results = await Promise.all(
+      days.map(async (day) => {
+        const nextDay = new Date(day);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const records = await Attendance.find({
+          ...filter,
+          date: { $gte: day, $lt: nextDay }
+        });
+
+        return {
+          date: day.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+          Present: records.filter((r) => r.status === 'Present').length,
+          Late: records.filter((r) => r.status === 'Late').length,
+          Absent: records.filter((r) => r.status === 'Absent').length,
+        };
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Helper: update attendance-related trust score components
 const updateAttendanceTrustScore = async (workerId) => {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -166,4 +199,11 @@ const updateAttendanceTrustScore = async (workerId) => {
   }
 };
 
-module.exports = { getAttendance, checkIn, checkOut, createAttendance, getWorkHours };
+module.exports = {
+  getAttendance,
+  checkIn,
+  checkOut,
+  createAttendance,
+  getWorkHours,
+  getAttendanceTrends
+};
