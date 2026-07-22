@@ -7,7 +7,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user on mount if token exists
   const loadUser = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) { setLoading(false); return; }
@@ -30,6 +29,12 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  // Used by Google Sign-In — token and user already returned by backend
+  const loginWithToken = (token, userData) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
+  };
+
   const register = async (formData) => {
     const { data } = await api.post('/auth/register', formData);
     localStorage.setItem('token', data.token);
@@ -48,7 +53,18 @@ export const AuthProvider = ({ children }) => {
   const isViewOnly = !!user?.viewOnly;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, isManager, isWorker, isAdmin, isViewOnly }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      loginWithToken,
+      logout,
+      register,
+      isManager,
+      isWorker,
+      isAdmin,
+      isViewOnly
+    }}>
       {children}
     </AuthContext.Provider>
   );

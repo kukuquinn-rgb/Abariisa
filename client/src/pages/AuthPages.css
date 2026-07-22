@@ -93,3 +93,30 @@
   .auth-panel-brand { max-width: none; padding: var(--space-8); min-height: auto; }
   .auth-panel-form { padding: var(--space-6) var(--space-4); }
 }
+/* ── Google Sign-In ─────────────────────────────────────────── */
+.google-signin-wrapper {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.google-signin-wrapper > div {
+  width: 100% !important;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
