@@ -1,11 +1,17 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const TrustScore = require('../models/TrustScore');
 const Invite = require('../models/Invite');
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 // Generate JWT
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
+
+const createRandomPassword = () => crypto.randomBytes(24).toString('hex');
 
 // @desc   Register a new user
 // @route  POST /api/auth/register
@@ -86,6 +92,58 @@ const login = async (req, res) => {
   }
 };
 
+// @desc   Google sign-in / sign-up
+// @route  POST /api/auth/google
+// @access Public
+const google = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: 'Google credential is required' });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ message: 'Google OAuth is not configured on the server' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload?.email) {
+      return res.status(400).json({ message: 'Google account email is required' });
+    }
+
+    const email = payload.email.toLowerCase();
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        name: payload.name || payload.email.split('@')[0],
+        email,
+        password: createRandomPassword(),
+        role: 'worker',
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ message: 'Account has been deactivated. Contact your administrator.' });
+    }
+
+    const token = signToken(user._id);
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, viewOnly: !!user.viewOnly },
+    });
+  } catch (err) {
+    console.error('Google login failed:', err.message);
+    res.status(500).json({ message: 'Google sign-in failed. Please try again.' });
+  }
+};
+
 // @desc   Get current logged-in user
 // @route  GET /api/auth/me
 // @access Private
@@ -98,4 +156,4 @@ const getMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe };
+module.exports = { register, login, getMe, google };

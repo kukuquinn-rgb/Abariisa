@@ -7,7 +7,7 @@ import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import api from '../utils/api';
 import './AuthPages.css';
 
-const GOOGLE_CLIENT_ID = '218840273638-6am9ek9q87ji5gjsfug2ienb3cbelcdj.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 
 export default function LoginPage() {
   const { login, loginWithToken } = useAuth();
