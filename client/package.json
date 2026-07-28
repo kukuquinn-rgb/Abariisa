@@ -17,7 +17,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "node -e \"console.log('DEBUG REACT_APP_GOOGLE_CLIENT_ID present:', !!process.env.REACT_APP_GOOGLE_CLIENT_ID, 'length:', (process.env.REACT_APP_GOOGLE_CLIENT_ID||'').length)\" && react-scripts build"
   },
   "browserslist": {
     "production": [
