@@ -6,10 +6,6 @@
 .auth-panel { flex: 1; display: flex; flex-direction: column; }
 
 .auth-panel-brand {
-  background-image: url('../assets/farm.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   position: relative;
   color: #fff;
   padding: var(--space-12) var(--space-10);
@@ -24,7 +20,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(20, 50, 20, 0.60);
+  background: rgba(120, 53, 15, 0.70);
 }
 
 .auth-brand-content {

@@ -5,6 +5,7 @@ import { Button, Input, Alert } from '../components/dashboard/UI';
 import { Leaf } from 'lucide-react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import api from '../utils/api';
+import farmPhoto from '../assets/farm.jpg';
 import './AuthPages.css';
 
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
@@ -51,8 +52,16 @@ export default function LoginPage() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className="auth-page">
-        {/* Left brand panel */}
-        <div className="auth-panel auth-panel-brand">
+
+        {/* Left brand panel — farm photo with brown overlay */}
+        <div
+          className="auth-panel auth-panel-brand"
+          style={{
+            backgroundImage: `url(${farmPhoto})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
           <div className="auth-brand-content">
             <div className="auth-logo">
               <Leaf size={40} color="#fff" />
@@ -139,6 +148,7 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
+
       </div>
     </GoogleOAuthProvider>
   );
