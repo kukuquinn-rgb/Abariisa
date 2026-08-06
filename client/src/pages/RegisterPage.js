@@ -76,7 +76,10 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-panel auth-panel-brand">
+      <div
+        className="auth-panel auth-panel-brand"
+        style={{ backgroundImage: `url(${process.env.PUBLIC_URL}/farm.jpg)` }}
+      >
         <div className="auth-brand-content">
           <div className="auth-logo"><Leaf size={40} color="#fff" /></div>
           <h1 className="auth-brand-title">Join Abariisa</h1>
@@ -87,7 +90,10 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      <div className="auth-panel auth-panel-form">
+      <div
+        className="auth-panel auth-panel-form"
+        style={{ backgroundImage: `url(${process.env.PUBLIC_URL}/farm.jpg)` }}
+      >
         <div className="auth-form-container">
           <div className="auth-form-header">
             {inviteState === 'checking' ? (

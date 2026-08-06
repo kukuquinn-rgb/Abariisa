@@ -14,6 +14,8 @@
   justify-content: center;
   max-width: 480px;
   flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
 }
 
 .auth-panel-brand::before {
@@ -67,14 +69,29 @@
 }
 
 .auth-panel-form {
-  background: var(--color-bg);
+  position: relative;
+  background-size: cover;
+  background-position: center;
   display: flex; align-items: center; justify-content: center;
   padding: var(--space-10);
 }
 
+.auth-panel-form::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(248, 250, 252, 0.82);
+}
+
 .auth-form-container {
+  position: relative;
+  z-index: 1;
   width: 100%; max-width: 440px;
   display: flex; flex-direction: column; gap: var(--space-6);
+  background: var(--color-surface);
+  padding: var(--space-8);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
 }
 
 .auth-form-header h2 {
@@ -109,6 +126,7 @@
     min-height: 280px;
   }
   .auth-panel-form { padding: var(--space-6) var(--space-4); }
+  .auth-form-container { padding: var(--space-6); }
 }
 
 /* ── Google Sign-In ─────────────────────────────────────────── */
