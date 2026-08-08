@@ -164,35 +164,36 @@ export default function DashboardPage() {
         </div>
 
         <Card className="worker-attendance-card" padding={false}>
-          <CardHeader title="Today's Attendance" subtitle={formatFullDate(today)} />
           <div className="worker-attendance-body">
-            {!todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
-              <>
-                <p className="worker-attendance-help">Tap the button below to start your day.</p>
-                <Button variant="success" size="lg" className="worker-checkin-button"
-                  loading={attendanceActionLoading} onClick={handleCheckIn}>
-                  Check In Now
-                </Button>
-              </>
-            ) : todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
-              <>
+            <div>
+              <p className="card-title">Today's Attendance</p>
+              <p className="card-subtitle">{formatFullDate(today)}</p>
+              {todayAttendance?.checkIn && (
                 <div className="worker-attendance-times">
                   <p><strong>Checked in:</strong> {formatTime(todayAttendance.checkIn)}</p>
-                  <span className="worker-status-badge">
-                    <CheckCircle size={16} /> Checked In
-                  </span>
+                  {todayAttendance?.checkOut && (
+                    <p><strong>Checked out:</strong> {formatTime(todayAttendance.checkOut)}</p>
+                  )}
                 </div>
+              )}
+            </div>
+            {!todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
+              <Button variant="success" size="lg" className="worker-checkin-button"
+                loading={attendanceActionLoading} onClick={handleCheckIn}>
+                Check In Now
+              </Button>
+            ) : todayAttendance?.checkIn && !todayAttendance?.checkOut ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                <span className="worker-status-badge">
+                  <CheckCircle size={16} /> Checked In
+                </span>
                 <Button variant="secondary" size="lg" className="worker-checkout-button"
                   loading={attendanceActionLoading} onClick={handleCheckOut}>
                   Check Out
                 </Button>
-              </>
-            ) : (
-              <div className="worker-attendance-times">
-                <p><strong>Checked in:</strong> {formatTime(todayAttendance?.checkIn)}</p>
-                <p><strong>Checked out:</strong> {formatTime(todayAttendance?.checkOut)}</p>
-                <p className="worker-success-message">Attendance recorded for today ✓</p>
               </div>
+            ) : (
+              <span className="worker-success-message">Attendance recorded for today ✓</span>
             )}
           </div>
         </Card>
@@ -235,10 +236,10 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
           <Card>
             <CardHeader title="My Attendance — Last 7 Days" />
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={170}>
               <BarChart data={workerAttTrends} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -253,7 +254,7 @@ export default function DashboardPage() {
           </Card>
           <Card>
             <CardHeader title="My Tasks — Last 7 Days" />
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={170}>
               <LineChart data={workerTaskTrends} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -268,7 +269,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <Card className="worker-task-section" style={{ marginTop: '1rem' }}>
+        <Card className="worker-task-section" style={{ marginTop: '0.75rem' }}>
           <CardHeader title="Today's Tasks" subtitle="Tasks that need your attention today" />
           {todayTasks.length === 0 ? (
             <p className="worker-empty-state">No tasks scheduled for today 🎉</p>
@@ -302,7 +303,7 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        <Card className="worker-task-section" style={{ marginTop: '1rem' }}>
+        <Card className="worker-task-section" style={{ marginTop: '0.75rem' }}>
           <CardHeader title="Recent Tasks" subtitle="Your latest task updates" />
           {recentTaskList.length === 0 ? (
             <p className="worker-empty-state">No recent tasks yet.</p>
@@ -381,7 +382,7 @@ export default function DashboardPage() {
 
       {/* ── TODAY VS YESTERDAY ── */}
       {attendanceTrends.length > 0 && (
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '0.75rem' }}>
           <p style={{
             fontSize: '0.8rem', fontWeight: 600,
             color: 'var(--color-text-muted)', marginBottom: '0.75rem'
@@ -468,13 +469,13 @@ export default function DashboardPage() {
       )}
 
       {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
         <Card>
           <CardHeader
             title="Farm Attendance — Last 7 Days"
             subtitle="Present vs Late vs Absent across all workers"
           />
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={190}>
             <BarChart data={attendanceTrends} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -493,7 +494,7 @@ export default function DashboardPage() {
             title="Task Activity — Last 7 Days"
             subtitle="Completed vs Overdue vs Pending per day"
           />
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={190}>
             <LineChart data={taskTrends} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -509,7 +510,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent tasks table */}
-      <Card style={{ marginTop: '1rem' }}>
+      <Card style={{ marginTop: '0.75rem' }}>
         <CardHeader
           title="Recent Tasks"
           subtitle="Your most recent task assignments"
@@ -570,7 +571,7 @@ export default function DashboardPage() {
 
       {/* Risk dashboard and leaderboard */}
       {isManager && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
           <RiskDashboard />
           <TrustScoreLeaderboard />
         </div>

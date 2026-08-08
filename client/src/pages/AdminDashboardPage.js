@@ -42,7 +42,7 @@ const AdminDashboardPage = () => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginTop: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginTop: '0.75rem' }}>
         <StatCard label="Total Users" value={stats.totalUsers} icon={<Users />} />
         <StatCard label="Farm Managers" value={stats.managers} icon={<Shield />} />
         <StatCard label="Workers" value={stats.workers} icon={<Users />} />
@@ -51,7 +51,7 @@ const AdminDashboardPage = () => {
         <StatCard label="Inactive Accounts" value={stats.inactiveUsers} icon={<UserX />} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
         <Card>
           <CardHeader title="Livestock Overview" subtitle="Totals by species" />
           {lStats ? (
