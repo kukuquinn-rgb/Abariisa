@@ -9,6 +9,7 @@ const AdminDashboardPage = () => {
   const [stats, setStats] = useState(null);
   const [lStats, setLStats] = useState(null);
   const [tStats, setTStats] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -23,11 +24,23 @@ const AdminDashboardPage = () => {
         setTStats(t);
       } catch (err) {
         console.error(err);
+        setError(
+          err.response?.status === 403 || err.response?.status === 401
+            ? 'Your session doesn\'t have admin access. Try logging out and back in.'
+            : err.response?.data?.message || 'Could not load admin stats. Please try again.'
+        );
       }
     };
     load();
   }, []);
 
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+        {error}
+      </div>
+    );
+  }
   if (!stats) return <Spinner />;
 
   return (
@@ -57,8 +70,8 @@ const AdminDashboardPage = () => {
           {lStats ? (
             <div>
               <p>Total: {lStats.total}</p>
-              {lStats.bySpecies && Object.entries(lStats.bySpecies).map(([k,v]) => (
-                <p key={k}>{k}: {v}</p>
+              {Array.isArray(lStats.bySpecies) && lStats.bySpecies.map((item) => (
+                <p key={item._id}>{item._id}: {item.count}</p>
               ))}
             </div>
           ) : <p>No livestock stats available</p>}
@@ -66,17 +79,18 @@ const AdminDashboardPage = () => {
 
         <Card>
           <CardHeader title="Task Overview" subtitle="Pending/Completed/Overdue" />
-          {tStats ? (
+          {tStats && Array.isArray(tStats) ? (
             <div>
-              <p>Pending: {tStats.pending}</p>
-              <p>Completed: {tStats.completed}</p>
-              <p>Overdue: {tStats.overdue}</p>
+              <p>Pending: {tStats.find((t) => t._id === 'Pending')?.count ?? 0}</p>
+              <p>In Progress: {tStats.find((t) => t._id === 'In Progress')?.count ?? 0}</p>
+              <p>Completed: {tStats.find((t) => t._id === 'Completed')?.count ?? 0}</p>
+              <p>Overdue: {tStats.find((t) => t._id === 'Overdue')?.count ?? 0}</p>
             </div>
           ) : <p>No task stats available</p>}
         </Card>
       </div>
 
-      <Card style={{ marginTop: '1rem' }}>
+      <Card style={{ marginTop: '0.75rem' }}>
         <CardHeader title="Recently Registered Users" />
         <Table>
           <TableHead columns={[{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Joined' }]} />
