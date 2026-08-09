@@ -9,11 +9,13 @@ const {
   getTaskStats,
   getRiskSummary,
   getThresholdsRoute,
-  updateThresholds
+  updateThresholds,
+  getTaskTrends
 } = require('../controllers/tasksController');
 const { protect, authorise, blockViewOnly } = require('../middleware/auth');
 
 router.get('/stats', protect, getTaskStats);
+router.get('/trends', protect, getTaskTrends);
 router.get('/risk-summary', protect, authorise('manager', 'admin'), getRiskSummary);
 router.get('/thresholds', protect, authorise('manager', 'admin'), getThresholdsRoute);
 router.put('/thresholds', protect, authorise('manager', 'admin'), blockViewOnly, updateThresholds);
