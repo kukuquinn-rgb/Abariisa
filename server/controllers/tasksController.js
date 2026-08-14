@@ -2,6 +2,7 @@ const Task = require('../models/Task');
 const TrustScore = require('../models/TrustScore');
 const Notification = require('../models/Notification');
 const SystemConfig = require('../models/SystemConfig');
+const User = require('../models/User');
 
 const DEFAULT_THRESHOLDS = {
   blockHighPriorityBelow: 40,
@@ -123,11 +124,13 @@ const createTask = async (req, res) => {
 
     if (riskFlag === 'High' || riskFlag === 'Medium') {
       const workerScore = (await TrustScore.findOne({ worker: assignedTo }))?.overallScore ?? 'N/A';
+      const workerUser = await User.findById(assignedTo).select('name');
+      const workerName = workerUser?.name ?? 'Unknown worker';
       await Notification.create({
         recipient: req.user.id,
         type: 'risk_alert',
         title: `${riskFlag} Risk Task Flagged`,
-        message: `Task "${task.title}" was flagged as ${riskFlag.toLowerCase()} risk for worker ${assignedTo}. Current trust score: ${workerScore}%.`,
+        message: `Task "${task.title}" was flagged as ${riskFlag.toLowerCase()} risk for ${workerName}. Current trust score: ${workerScore}%.`,
         relatedTask: task._id,
         relatedWorker: assignedTo
       });
