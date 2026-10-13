@@ -1,55 +1,68 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Button, Input, Select, Alert, Badge, Spinner } from '../components/dashboard/UI';
+import { Button, Input, Alert, Badge } from '../components/dashboard/UI';
 import { Leaf, Eye } from 'lucide-react';
 import api from '../utils/api';
 import './AuthPages.css';
 
+// "Join a farm" — accounts are only created through a farm's invite link/code.
+// New farm owners use /register-farm instead.
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const inviteCode = searchParams.get('invite');
+  const initialCode = searchParams.get('invite') || '';
 
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
-    role: 'worker', phone: '', position: '', department: '', inviteCode: inviteCode || ''
+    phone: '', position: '', department: '', inviteCode: initialCode
   });
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [inviteState, setInviteState] = useState('checking'); // 'checking', 'valid', 'invalid'
+  const [inviteState, setInviteState] = useState(initialCode ? 'checking' : 'empty'); // 'empty' | 'checking' | 'valid' | 'invalid'
   const [inviteData, setInviteData] = useState(null);
+  const [inviteError, setInviteError] = useState('');
 
   const handleChange = (e) => {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
     setErrors((p) => ({ ...p, [e.target.name]: '' }));
+    if (e.target.name === 'inviteCode') {
+      setInviteState(e.target.value.trim() ? 'unchecked' : 'empty');
+      setInviteData(null);
+      setInviteError('');
+    }
   };
 
-  useEffect(() => {
-    if (!inviteCode) {
+  // Returns whether the code is valid (state updates are async, so callers use the return value).
+  const checkInvite = useCallback(async (code) => {
+    const trimmed = code.trim();
+    if (!trimmed) { setInviteState('empty'); return false; }
+    setInviteState('checking');
+    try {
+      const { data } = await api.get(`/invites/${encodeURIComponent(trimmed)}/validate`);
+      setInviteData(data);
+      setInviteState('valid');
+      setInviteError('');
+      if (data.email) setForm((p) => ({ ...p, email: data.email }));
+      return true;
+    } catch (err) {
+      setInviteData(null);
       setInviteState('invalid');
-      return;
+      setInviteError(err.response?.data?.message || 'Invalid or expired invite');
+      return false;
     }
-    const validateInvite = async () => {
-      try {
-        const { data } = await api.get(`/invites/${inviteCode}/validate`);
-        setInviteData(data);
-        setInviteState('valid');
-        if (data.email) {
-          setForm(p => ({ ...p, email: data.email }));
-        }
-      } catch (err) {
-        setInviteState('invalid');
-        setApiError(err.response?.data?.message || 'Invalid or expired invite');
-      }
-    };
-    validateInvite();
-  }, [inviteCode]);
+  }, []);
 
-  const validate = () => {
+  useEffect(() => {
+    if (initialCode) checkInvite(initialCode);
+  }, [initialCode, checkInvite]);
+
+  const validate = (inviteValid) => {
     const errs = {};
+    if (!form.inviteCode.trim()) errs.inviteCode = 'An invite code is required to join a farm';
+    else if (!inviteValid) errs.inviteCode = 'This invite code is invalid or has expired';
     if (!form.name.trim()) errs.name = 'Full name is required';
     if (!form.email.trim()) errs.email = 'Email is required';
     if (form.password.length < 6) errs.password = 'Password must be at least 6 characters';
@@ -59,12 +72,15 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const errs = validate();
+    let inviteValid = inviteState === 'valid';
+    if (!inviteValid && form.inviteCode.trim()) inviteValid = await checkInvite(form.inviteCode);
+    const errs = validate(inviteValid);
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setApiError('');
     setLoading(true);
     try {
       const { confirmPassword, ...payload } = form;
+      payload.inviteCode = payload.inviteCode.trim();
       await register(payload);
       navigate('/dashboard');
     } catch (err) {
@@ -74,6 +90,11 @@ export default function RegisterPage() {
     }
   };
 
+  const isWorkerInvite = inviteState === 'valid' && inviteData?.role === 'worker';
+  const roleLabel = !inviteData ? '' : inviteData.role === 'worker'
+    ? 'a farm worker'
+    : inviteData.viewOnly ? 'a view-only collaborator' : 'a farm manager';
+
   return (
     <div className="auth-page">
       <div
@@ -82,10 +103,10 @@ export default function RegisterPage() {
       >
         <div className="auth-brand-content">
           <div className="auth-logo"><Leaf size={40} color="#fff" /></div>
-          <h1 className="auth-brand-title">Join Abariisa</h1>
+          <h1 className="auth-brand-title">Join a farm</h1>
           <p className="auth-brand-tagline">Smart Farm Management System</p>
           <p className="auth-brand-desc">
-            Create your account to start managing your farm operations intelligently.
+            Use the invite link or code from your farm manager to create your account.
           </p>
         </div>
       </div>
@@ -96,34 +117,24 @@ export default function RegisterPage() {
       >
         <div className="auth-form-container">
           <div className="auth-form-header">
-            {inviteState === 'checking' ? (
-              <>
-                <Spinner />
-                <p>Checking invite...</p>
-              </>
-            ) : inviteState === 'valid' ? (
+            {inviteState === 'valid' ? (
               <>
                 <h2>You're invited!</h2>
-                <p>Registering as a view-only collaborator for {inviteData?.invitedByName}'s farm</p>
+                <p>Joining {inviteData?.farmName} as {roleLabel}</p>
               </>
             ) : (
               <>
-                <h2>Create account</h2>
-                <p>Get started with Abariisa today</p>
+                <h2>Join a farm</h2>
+                <p>Enter the invite code your farm manager sent you</p>
               </>
             )}
           </div>
 
           {inviteState === 'valid' && (
             <Alert variant="success">
-              You're registering as a view-only collaborator for {inviteData?.invitedByName}'s farm
-              <Badge variant="info"><Eye size={12} /> Read-only access</Badge>
-            </Alert>
-          )}
-
-          {inviteState === 'invalid' && inviteCode && (
-            <Alert variant="warning">
-              This invite code is invalid or has expired. You can still register normally to create an account.
+              You're joining <strong>{inviteData?.farmName}</strong>
+              {inviteData?.invitedByName ? `, invited by ${inviteData.invitedByName}` : ''}.
+              {inviteData?.viewOnly && <Badge variant="info"><Eye size={12} /> Read-only access</Badge>}
             </Alert>
           )}
 
@@ -131,24 +142,23 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} noValidate>
             <div className="auth-fields">
+              <Input label="Invite code" name="inviteCode" value={form.inviteCode} onChange={handleChange}
+                onBlur={() => inviteState === 'unchecked' && checkInvite(form.inviteCode)}
+                placeholder="e.g. 3f9a1c7b2e4d" required
+                error={errors.inviteCode || (inviteState === 'invalid' ? inviteError : '')}
+                hint={inviteState === 'checking' ? 'Checking invite…' : undefined} />
+
               <Input label="Full name" name="name" value={form.name} onChange={handleChange}
                 placeholder="e.g. Kukunda Linda" required error={errors.name} autoComplete="name" />
 
               <Input label="Email address" type="email" name="email" value={form.email}
                 onChange={handleChange} placeholder="you@example.com" required error={errors.email}
-                autoComplete="email" disabled={inviteState === 'valid' && inviteData?.email} />
-
-              {inviteState !== 'valid' && (
-                <Select label="Role" name="role" value={form.role} onChange={handleChange} required>
-                  <option value="worker">Farm Worker</option>
-                  <option value="manager">Farm Manager</option>
-                </Select>
-              )}
+                autoComplete="email" disabled={inviteState === 'valid' && !!inviteData?.email} />
 
               <Input label="Phone number" name="phone" value={form.phone} onChange={handleChange}
                 placeholder="+256 700 000 000" autoComplete="tel" />
 
-              {form.role === 'worker' && inviteState !== 'valid' && (
+              {isWorkerInvite && (
                 <>
                   <Input label="Position / Job title" name="position" value={form.position}
                     onChange={handleChange} placeholder="e.g. Livestock Keeper" />
@@ -167,11 +177,13 @@ export default function RegisterPage() {
             </div>
 
             <Button type="submit" size="lg" loading={loading} style={{ width: '100%', marginTop: '1.5rem' }}>
-              Create account
+              Join farm
             </Button>
           </form>
 
           <p className="auth-switch">
+            Starting your own farm? <Link to="/register-farm">Register your farm</Link>
+            <br />
             Already have an account? <Link to="/login">Sign in</Link>
           </p>
         </div>

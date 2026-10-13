@@ -15,13 +15,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 globally — auto-logout
+// Handle 401 globally — auto-logout.
+// Handle 403 + needsOnboarding — the account isn't linked to a farm yet.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
+    } else if (error.response?.status === 403 && error.response.data?.needsOnboarding) {
+      if (window.location.pathname !== '/onboarding') window.location.href = '/onboarding';
     }
     return Promise.reject(error);
   }

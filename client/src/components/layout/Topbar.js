@@ -22,7 +22,7 @@ const PAGE_TITLES = {
 };
 
 export default function Topbar({ onMenuClick }) {
-  const { user, logout, isViewOnly } = useAuth();
+  const { user, logout, isViewOnly, farm } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [unread, setUnread] = useState(0);
@@ -54,6 +54,7 @@ export default function Topbar({ onMenuClick }) {
           <Menu size={20} />
         </button>
         <h1 className="topbar-title">{title}</h1>
+        {farm && <span className="topbar-farm" title={farm.name}>{farm.name}</span>}
         {isViewOnly && <Badge variant="info"><Eye size={12} /> View-only</Badge>}
       </div>
 

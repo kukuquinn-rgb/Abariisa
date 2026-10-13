@@ -6,6 +6,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import RegisterFarmPage from './pages/RegisterFarmPage';
+import OnboardingPage from './pages/OnboardingPage';
 import DashboardPage from './pages/DashboardPage';
 import LivestockPage from './pages/LivestockPage';
 import WorkersPage from './pages/WorkersPage';
@@ -28,9 +30,20 @@ import AppLayout from './components/layout/AppLayout';
 
 // Route guards
 const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading…</div>;
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
+  return children;
+};
+
+// Signed in, but not linked to a farm yet (new Google account)
+const OnboardingRoute = ({ children }) => {
+  const { user, loading, needsOnboarding } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!needsOnboarding) return <Navigate to="/dashboard" replace />;
+  return children;
 };
 
 const ManagerRoute = ({ children }) => {
@@ -58,9 +71,10 @@ const OperatorRoute = ({ children }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) return null;
-  return user ? <Navigate to="/dashboard" replace /> : children;
+  if (!user) return children;
+  return <Navigate to={needsOnboarding ? '/onboarding' : '/dashboard'} replace />;
 };
 
 const HomeRedirect = () => {
@@ -73,6 +87,8 @@ const AppRoutes = () => (
     {/* Public routes */}
     <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
     <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+    <Route path="/register-farm" element={<PublicRoute><RegisterFarmPage /></PublicRoute>} />
+    <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
 
     {/* Protected routes */}
     <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>

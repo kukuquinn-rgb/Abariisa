@@ -40,7 +40,8 @@ export default function LoginPage() {
         credential: credentialResponse.credential,
       });
       loginWithToken(data.token, data.user);
-      navigate('/dashboard');
+      // New Google accounts aren't linked to a farm yet
+      navigate(data.user?.needsOnboarding ? '/onboarding' : '/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Google sign-in failed. Please try again.');
     } finally {
@@ -141,8 +142,11 @@ export default function LoginPage() {
             </form>
 
             <p className="auth-switch">
-              Don't have an account?{' '}
-              <Link to="/register">Register here</Link>
+              New to Abariisa?{' '}
+              <Link to="/register-farm">Register your farm</Link>
+              <br />
+              Have an invite from a farm?{' '}
+              <Link to="/register">Join a farm</Link>
             </p>
           </div>
         </div>

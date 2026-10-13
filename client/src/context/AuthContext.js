@@ -35,8 +35,25 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  // Join an existing farm with an invite code
   const register = async (formData) => {
     const { data } = await api.post('/auth/register', formData);
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
+  // Create a new farm; the registering user becomes its manager
+  const registerFarm = async (formData) => {
+    const { data } = await api.post('/auth/register-farm', formData);
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
+  // Signed-in user without a farm (e.g. new Google account): create a farm or redeem an invite
+  const onboard = async (payload) => {
+    const { data } = await api.post('/auth/onboard', payload);
     localStorage.setItem('token', data.token);
     setUser(data.user);
     return data.user;
@@ -51,6 +68,8 @@ export const AuthProvider = ({ children }) => {
   const isWorker = user?.role === 'worker';
   const isAdmin = user?.role === 'admin';
   const isViewOnly = !!user?.viewOnly;
+  const farm = user?.farm || null; // { id, name } — null for admins and users still onboarding
+  const needsOnboarding = !!user?.needsOnboarding;
 
   return (
     <AuthContext.Provider value={{
@@ -60,6 +79,10 @@ export const AuthProvider = ({ children }) => {
       loginWithToken,
       logout,
       register,
+      registerFarm,
+      onboard,
+      farm,
+      needsOnboarding,
       isManager,
       isWorker,
       isAdmin,

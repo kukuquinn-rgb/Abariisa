@@ -236,6 +236,17 @@
   color: var(--color-text-primary);
 }
 
+.topbar-farm {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
 .topbar-user {
   display: flex; align-items: center; gap: var(--space-3);
 }
@@ -383,5 +394,10 @@
 
   .topbar-user-info {
     display: none;
+  }
+
+  .topbar-farm {
+    padding-left: var(--space-2);
+    max-width: 110px;
   }
 }
