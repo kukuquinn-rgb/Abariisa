@@ -31,15 +31,19 @@ const UserSchema = new mongoose.Schema(
     viewOnly: { type: Boolean, default: false },
     invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // Tenant: the farm this user belongs to. Admins are platform-level and have no farm.
+    // A new Google user has no farm until they finish onboarding (needsOnboarding = true).
     farm: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Farm',
       index: true,
       required: [
-        function () { return this.role === 'manager' || this.role === 'worker'; },
+        function () {
+          return (this.role === 'manager' || this.role === 'worker') && !this.needsOnboarding;
+        },
         'Farm is required for managers and workers'
       ]
-    }
+    },
+    needsOnboarding: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
