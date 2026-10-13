@@ -18,7 +18,8 @@ const createRandomPassword = () => crypto.randomBytes(24).toString('hex');
 // @access Public
 const register = async (req, res) => {
   try {
-    const { name, email, password, role, phone, position, department, inviteCode } = req.body;
+    // `role` is intentionally NOT read from the body — roles are only ever set server-side.
+    const { name, email, password, phone, position, department, inviteCode } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -36,7 +37,7 @@ const register = async (req, res) => {
     }
 
     // If invite present, override role/viewOnly/invitedBy
-    const newUserData = { name, email, password, role, phone, position, department };
+    const newUserData = { name, email, password, phone, position, department };
     if (invite) {
       newUserData.role = invite.role || 'manager';
       newUserData.viewOnly = !!invite.viewOnly;

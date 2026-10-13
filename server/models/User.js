@@ -29,7 +29,17 @@ const UserSchema = new mongoose.Schema(
     ,
     // View-only collaborator flag and inviter
     viewOnly: { type: Boolean, default: false },
-    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Tenant: the farm this user belongs to. Admins are platform-level and have no farm.
+    farm: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Farm',
+      index: true,
+      required: [
+        function () { return this.role === 'manager' || this.role === 'worker'; },
+        'Farm is required for managers and workers'
+      ]
+    }
   },
   { timestamps: true }
 );
