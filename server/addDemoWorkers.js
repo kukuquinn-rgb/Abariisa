@@ -4,7 +4,10 @@
  * Prediction features without re-running the full seed (which wipes data).
  *
  * Usage:
- *   node addDemoWorkers.js
+ *   node addDemoWorkers.js [--farm=<farm id or exact name>]
+ *
+ * Writes to the given farm, or the oldest manager's farm (creating
+ * "Abariisa Demo Farm" with a manager if there is none yet).
  *
  * Safe to run on top of existing data — does NOT delete anything.
  * Run it from inside the server/ folder (same place as seed.js).
@@ -14,22 +17,24 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 const TrustScore = require('./models/TrustScore');
 const Task = require('./models/Task');
+const { resolveDemoFarm, createFarmWithManager } = require('./demoFarm');
 
 const run = async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('Connected to MongoDB…');
 
-  // Find an existing manager to assign tasks from (falls back to creating one)
-  let manager = await User.findOne({ role: 'manager' });
-  if (!manager) {
-    manager = await User.create({
-      name: 'Linda Kukunda',
-      email: 'manager@abariisa.com',
-      password: 'password123',
-      role: 'manager'
+  // Find the target farm and its manager (falls back to creating both)
+  let target = await resolveDemoFarm();
+  if (!target) {
+    target = await createFarmWithManager({
+      farmName: 'Abariisa Demo Farm',
+      district: 'Mbarara',
+      manager: { name: 'Linda Kukunda', email: 'manager@abariisa.com', password: 'password123' }
     });
-    console.log('No manager found — created one: manager@abariisa.com / password123');
+    console.log('No manager found — created "Abariisa Demo Farm" with manager@abariisa.com / password123');
   }
+  const { farm, manager } = target;
+  console.log(`Using farm: ${farm.name} (${farm._id})`);
 
   // Worker profiles spanning the full trust spectrum
   const workerProfiles = [
@@ -56,6 +61,10 @@ const run = async () => {
   for (const profile of workerProfiles) {
     const existing = await User.findOne({ email: profile.email });
     if (existing) {
+      if (String(existing.farm) !== String(farm._id)) {
+        console.log(`Skipped (email already used on another farm): ${profile.email}`);
+        continue;
+      }
       console.log(`Skipped (already exists): ${profile.email}`);
       createdWorkers.push(existing);
       continue;
@@ -66,12 +75,14 @@ const run = async () => {
       email: profile.email,
       password: 'password123',
       role: 'worker',
+      farm: farm._id,
       position: profile.position,
       department: profile.department,
       employmentStartDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
     });
 
     const trustScore = await TrustScore.create({
+      farm: farm._id,
       worker: worker._id,
       attendanceScore: profile.attendanceScore,
       punctualityScore: profile.punctualityScore,
@@ -108,6 +119,7 @@ const run = async () => {
   for (let i = 0; i < lowTrustWorkers.length; i++) {
     const worker = lowTrustWorkers[i];
     const alreadyHasDemoTask = await Task.findOne({
+      farm: farm._id,
       assignedTo: worker._id,
       title: { $in: taskTitles }
     });
@@ -116,12 +128,13 @@ const run = async () => {
       continue;
     }
 
-    const ts = await TrustScore.findOne({ worker: worker._id });
+    const ts = await TrustScore.findOne({ farm: farm._id, worker: worker._id });
     let riskFlag = null;
     if (ts.overallScore < 50) riskFlag = 'High';
     else if (ts.overallScore < 70) riskFlag = 'Medium';
 
     const task = await Task.create({
+      farm: farm._id,
       title: taskTitles[i % taskTitles.length],
       description: 'Demo task created to illustrate Task Risk Prediction based on Worker Trust Score.',
       priority: 'High',
@@ -139,7 +152,7 @@ const run = async () => {
   console.log('\n──────────────────────────────────────────────');
   console.log('Demo workers ready! Trust Score summary:');
   for (const worker of createdWorkers) {
-    const ts = await TrustScore.findOne({ worker: worker._id });
+    const ts = await TrustScore.findOne({ farm: farm._id, worker: worker._id });
     console.log(`  ${worker.name.padEnd(22)} ${ts.overallScore}%  (login: ${worker.email} / password123)`);
   }
   console.log('──────────────────────────────────────────────\n');

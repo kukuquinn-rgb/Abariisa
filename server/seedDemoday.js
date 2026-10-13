@@ -17,7 +17,9 @@
  * or duplicate anything; only tops up what's missing for "today."
  *
  * Usage:
- *   node seedDemoDay.js
+ *   node seedDemoDay.js [--farm=<farm id or exact name>]
+ *
+ * Works on the given farm, or the oldest manager's farm.
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -25,6 +27,7 @@ const User = require('./models/User');
 const Task = require('./models/Task');
 const Attendance = require('./models/Attendance');
 const TrustScore = require('./models/TrustScore');
+const { resolveDemoFarm } = require('./demoFarm');
 
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const daysAgo = (n) => { const x = new Date(); x.setDate(x.getDate() - n); return x; };
@@ -40,13 +43,16 @@ const run = async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('Connected to MongoDB…\n');
 
-  const manager = await User.findOne({ role: 'manager' });
-  if (!manager) {
+  const target = await resolveDemoFarm();
+  if (!target) {
     console.error('❌ No manager found. Run addDemoWorkers.js first.');
     process.exit(1);
   }
+  const { farm, manager } = target;
+  const inFarm = { farm: farm._id };
+  console.log(`Farm: ${farm.name} (${farm._id})\n`);
 
-  const workers = await User.find({ email: { $in: DEMO_WORKER_EMAILS } }).populate('trustScore');
+  const workers = await User.find({ ...inFarm, email: { $in: DEMO_WORKER_EMAILS } }).populate('trustScore');
   if (workers.length === 0) {
     console.error('❌ No demo workers found. Run addDemoWorkers.js first.');
     process.exit(1);
@@ -74,6 +80,7 @@ const run = async () => {
 
     // Remove any stale "due today" demo task from a previous run (different date)
     await Task.deleteMany({
+      ...inFarm,
       assignedTo: worker._id,
       title,
       status: { $in: ['Pending', 'In Progress'] },
@@ -81,6 +88,7 @@ const run = async () => {
     });
 
     const existsToday = await Task.findOne({
+      ...inFarm,
       assignedTo: worker._id,
       title,
       dueDate: { $gte: today, $lt: new Date(today.getTime() + 86400000) },
@@ -95,6 +103,7 @@ const run = async () => {
     dueDate.setHours(23, 59, 0, 0); // due end of day — avoids the auto-Overdue pre-save hook firing if run late in the day
 
     await Task.create({
+      ...inFarm,
       title,
       category: categoryFor[title],
       priority: 'Medium',
@@ -112,7 +121,7 @@ const run = async () => {
   for (const worker of workers) {
     for (let i = 1; i <= 7; i++) {
       const date = startOfDay(daysAgo(i));
-      const exists = await Attendance.findOne({ worker: worker._id, date });
+      const exists = await Attendance.findOne({ ...inFarm, worker: worker._id, date });
       if (exists) continue;
 
       const scheduledStart = new Date(date);
@@ -124,7 +133,7 @@ const run = async () => {
 
       if (isAbsent) {
         await Attendance.create({
-          worker: worker._id, date, status: 'Absent', scheduledStart, recordedBy: manager._id,
+          ...inFarm, worker: worker._id, date, status: 'Absent', scheduledStart, recordedBy: manager._id,
         });
       } else {
         const checkIn = new Date(scheduledStart);
@@ -133,7 +142,7 @@ const run = async () => {
         checkOut.setHours(checkOut.getHours() + 8);
 
         await Attendance.create({
-          worker: worker._id, date, checkIn, checkOut, scheduledStart, recordedBy: worker._id,
+          ...inFarm, worker: worker._id, date, checkIn, checkOut, scheduledStart, recordedBy: worker._id,
         });
       }
       attendanceCreated++;
@@ -146,7 +155,7 @@ const run = async () => {
   console.log('✅ Ready for demo — login cheat sheet:');
   console.log('══════════════════════════════════════════════');
   for (const worker of workers) {
-    const ts = await TrustScore.findOne({ worker: worker._id });
+    const ts = await TrustScore.findOne({ ...inFarm, worker: worker._id });
     console.log(`  ${worker.name.padEnd(20)} ${worker.email.padEnd(24)} password123   Trust: ${ts?.overallScore ?? '—'}%`);
   }
   console.log(`  ${manager.name.padEnd(20)} ${manager.email.padEnd(24)} password123   (manager)`);

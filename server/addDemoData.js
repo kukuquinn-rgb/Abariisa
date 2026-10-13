@@ -6,7 +6,9 @@
  * Run this AFTER addDemoWorkers.js (it relies on those workers existing).
  *
  * Usage:
- *   node addDemoData.js
+ *   node addDemoData.js [--farm=<farm id or exact name>]
+ *
+ * Writes to the given farm, or the oldest manager's farm.
  *
  * Safe to run on top of existing data — skips anything that already exists,
  * does NOT delete anything.
@@ -20,6 +22,7 @@ const Task = require('./models/Task');
 const Attendance = require('./models/Attendance');
 const Notification = require('./models/Notification');
 const TrustScore = require('./models/TrustScore');
+const { resolveDemoFarm } = require('./demoFarm');
 
 const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 const daysFromNow = (n) => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
@@ -28,17 +31,20 @@ const run = async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('Connected to MongoDB…\n');
 
-  const manager = await User.findOne({ role: 'manager' });
-  if (!manager) {
+  const target = await resolveDemoFarm();
+  if (!target) {
     console.error('❌ No manager account found. Log in as a manager first, or run addDemoWorkers.js.');
     process.exit(1);
   }
+  const { farm, manager } = target;
+  const inFarm = { farm: farm._id };
 
-  const workers = await User.find({ role: 'worker' }).populate('trustScore');
+  const workers = await User.find({ ...inFarm, role: 'worker' }).populate('trustScore');
   if (workers.length === 0) {
     console.error('❌ No worker accounts found. Run addDemoWorkers.js first.');
     process.exit(1);
   }
+  console.log(`Farm: ${farm.name} (${farm._id})`);
   console.log(`Found manager: ${manager.name}`);
   console.log(`Found ${workers.length} worker(s)\n`);
 
@@ -119,9 +125,9 @@ const run = async () => {
 
   let livestockCreated = 0;
   for (const data of livestockData) {
-    const exists = await Livestock.findOne({ animalId: data.animalId });
+    const exists = await Livestock.findOne({ ...inFarm, animalId: data.animalId });
     if (exists) { console.log(`  Skipped (exists): ${data.animalId}`); continue; }
-    await Livestock.create({ ...data, addedBy: manager._id });
+    await Livestock.create({ ...data, ...inFarm, addedBy: manager._id });
     livestockCreated++;
     console.log(`  ✅ ${data.animalId} — ${data.species} (${data.healthStatus})`);
   }
@@ -138,7 +144,7 @@ const run = async () => {
       const date = daysAgo(i);
       date.setHours(0, 0, 0, 0);
 
-      const exists = await Attendance.findOne({ worker: worker._id, date });
+      const exists = await Attendance.findOne({ ...inFarm, worker: worker._id, date });
       if (exists) continue;
 
       const scheduledStart = new Date(date);
@@ -151,7 +157,7 @@ const run = async () => {
 
       if (isAbsent) {
         await Attendance.create({
-          worker: worker._id, date, status: 'Absent', scheduledStart, recordedBy: manager._id
+          ...inFarm, worker: worker._id, date, status: 'Absent', scheduledStart, recordedBy: manager._id
         });
       } else {
         const checkIn = new Date(scheduledStart);
@@ -160,7 +166,7 @@ const run = async () => {
         checkOut.setHours(checkOut.getHours() + 8);
 
         await Attendance.create({
-          worker: worker._id, date, checkIn, checkOut, scheduledStart, recordedBy: worker._id
+          ...inFarm, worker: worker._id, date, checkIn, checkOut, scheduledStart, recordedBy: worker._id
         });
       }
       attendanceCreated++;
@@ -190,11 +196,11 @@ const run = async () => {
   for (const worker of workers) {
     // Completed task (on time)
     const t1 = taskTemplates[taskIndex++ % taskTemplates.length];
-    const completedExists = await Task.findOne({ assignedTo: worker._id, title: t1.title, status: 'Completed' });
+    const completedExists = await Task.findOne({ ...inFarm, assignedTo: worker._id, title: t1.title, status: 'Completed' });
     if (!completedExists) {
       const dueDate = daysAgo(3);
       await Task.create({
-        ...t1, assignedTo: worker._id, assignedBy: manager._id,
+        ...t1, ...inFarm, assignedTo: worker._id, assignedBy: manager._id,
         dueDate, status: 'Completed', completedAt: daysAgo(3.2)
       });
       tasksCreated++;
@@ -202,10 +208,10 @@ const run = async () => {
 
     // In Progress task
     const t2 = taskTemplates[taskIndex++ % taskTemplates.length];
-    const inProgressExists = await Task.findOne({ assignedTo: worker._id, title: t2.title, status: 'In Progress' });
+    const inProgressExists = await Task.findOne({ ...inFarm, assignedTo: worker._id, title: t2.title, status: 'In Progress' });
     if (!inProgressExists) {
       await Task.create({
-        ...t2, assignedTo: worker._id, assignedBy: manager._id,
+        ...t2, ...inFarm, assignedTo: worker._id, assignedBy: manager._id,
         dueDate: daysFromNow(1), status: 'In Progress'
       });
       tasksCreated++;
@@ -213,10 +219,10 @@ const run = async () => {
 
     // Pending task (upcoming)
     const t3 = taskTemplates[taskIndex++ % taskTemplates.length];
-    const pendingExists = await Task.findOne({ assignedTo: worker._id, title: t3.title, status: 'Pending' });
+    const pendingExists = await Task.findOne({ ...inFarm, assignedTo: worker._id, title: t3.title, status: 'Pending' });
     if (!pendingExists) {
       await Task.create({
-        ...t3, assignedTo: worker._id, assignedBy: manager._id,
+        ...t3, ...inFarm, assignedTo: worker._id, assignedBy: manager._id,
         dueDate: daysFromNow(3), status: 'Pending'
       });
       tasksCreated++;
@@ -226,10 +232,10 @@ const run = async () => {
     const trustLevel = worker.trustScore?.overallScore ?? 80;
     if (trustLevel < 70) {
       const t4 = taskTemplates[taskIndex++ % taskTemplates.length];
-      const overdueExists = await Task.findOne({ assignedTo: worker._id, title: t4.title, status: 'Overdue' });
+      const overdueExists = await Task.findOne({ ...inFarm, assignedTo: worker._id, title: t4.title, status: 'Overdue' });
       if (!overdueExists) {
         await Task.create({
-          ...t4, assignedTo: worker._id, assignedBy: manager._id,
+          ...t4, ...inFarm, assignedTo: worker._id, assignedBy: manager._id,
           dueDate: daysAgo(1), status: 'Overdue'
         });
         tasksCreated++;
@@ -269,18 +275,18 @@ const run = async () => {
 
   let notificationsCreated = 0;
   for (const data of notificationData) {
-    const exists = await Notification.findOne({ recipient: data.recipient, title: data.title });
+    const exists = await Notification.findOne({ ...inFarm, recipient: data.recipient, title: data.title });
     if (exists) continue;
-    await Notification.create(data);
+    await Notification.create({ ...data, ...inFarm });
     notificationsCreated++;
   }
 
   // One task-assigned notification per worker (if not already present)
   for (const worker of workers) {
-    const exists = await Notification.findOne({ recipient: worker._id, type: 'task_assigned' });
+    const exists = await Notification.findOne({ ...inFarm, recipient: worker._id, type: 'task_assigned' });
     if (exists) continue;
     await Notification.create({
-      recipient: worker._id, type: 'task_assigned',
+      ...inFarm, recipient: worker._id, type: 'task_assigned',
       title: 'New Task Assigned',
       message: `You have new tasks assigned. Check your Tasks page for details.`
     });
@@ -291,10 +297,10 @@ const run = async () => {
   // ─────────────────────────────────────────────────────────────────────
   // SUMMARY
   // ─────────────────────────────────────────────────────────────────────
-  const totalLivestock = await Livestock.countDocuments({ isArchived: false });
-  const totalTasks = await Task.countDocuments({});
-  const totalAttendance = await Attendance.countDocuments({});
-  const totalNotifications = await Notification.countDocuments({});
+  const totalLivestock = await Livestock.countDocuments({ ...inFarm, isArchived: false });
+  const totalTasks = await Task.countDocuments(inFarm);
+  const totalAttendance = await Attendance.countDocuments(inFarm);
+  const totalNotifications = await Notification.countDocuments(inFarm);
 
   console.log('══════════════════════════════════════════════');
   console.log('✅ Demo data ready for supervisor presentation!');
