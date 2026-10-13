@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const TaskSchema = new mongoose.Schema(
   {
+    farm: { type: mongoose.Schema.Types.ObjectId, ref: 'Farm', required: true, index: true },
     title: { type: String, required: [true, 'Task title is required'], trim: true },
     description: { type: String, trim: true },
     priority: {

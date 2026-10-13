@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const WorkPlanSchema = new mongoose.Schema({
+  farm: { type: mongoose.Schema.Types.ObjectId, ref: 'Farm', required: true, index: true },
   title: { type: String, required: true },
   date: { type: Date, required: true },
   assignedTo: {

@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const LivestockSchema = new mongoose.Schema(
   {
-    animalId: { type: String, required: true, unique: true, trim: true },
+    farm: { type: mongoose.Schema.Types.ObjectId, ref: 'Farm', required: true, index: true },
+    animalId: { type: String, required: true, trim: true }, // unique per farm (see index below)
     species: {
       type: String,
       required: true,
@@ -79,5 +80,8 @@ const LivestockSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Animal IDs (e.g. "C001") only need to be unique within a farm.
+LivestockSchema.index({ farm: 1, animalId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Livestock', LivestockSchema);

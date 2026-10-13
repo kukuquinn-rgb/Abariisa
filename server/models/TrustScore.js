@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const TrustScoreSchema = new mongoose.Schema(
   {
+    farm: { type: mongoose.Schema.Types.ObjectId, ref: 'Farm', required: true, index: true },
     worker: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     // Component scores (0-100)
     attendanceScore: { type: Number, default: 100, min: 0, max: 100 },

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const AttendanceSchema = new mongoose.Schema(
   {
+    farm: { type: mongoose.Schema.Types.ObjectId, ref: 'Farm', required: true, index: true },
     worker: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     date: { type: Date, required: true },
     checkIn: { type: Date },
