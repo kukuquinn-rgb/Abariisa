@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test:isolation": "node tests/isolation.js",
+    "migrate:add-farm": "node migrations/001-add-farm.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
