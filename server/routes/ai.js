@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { handleQuery } = require('../controllers/aiController');
-const { protect } = require('../middleware/auth');
+const { protect, scopeFarm } = require('../middleware/auth');
 
-router.post('/', protect, handleQuery);
+router.post('/', protect, scopeFarm, handleQuery);
 
 module.exports = router;

@@ -15,6 +15,7 @@ const trustScoreRoutes = require('./routes/trustScores');
 const leaveRoutes = require('./routes/leave');
 const workPlanRoutes = require('./routes/workPlans');
 const aiRoutes = require('./routes/ai');
+const farmRoutes = require('./routes/farms');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api/trust-scores', trustScoreRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/work-plans', workPlanRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/farms', farmRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));

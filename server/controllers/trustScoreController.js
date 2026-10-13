@@ -3,15 +3,19 @@ const Notification = require('../models/Notification');
 const Task = require('../models/Task');
 const TrustScore = require('../models/TrustScore');
 const User = require('../models/User');
+const { farmScope } = require('../middleware/auth');
 
-const recalculateWorkerScore = async (workerId, managerId) => {
-  const trustScore = await TrustScore.findOne({ worker: workerId });
+// `scope` is a farm filter ({ farm } or {} for an unscoped admin). Every read below
+// is limited to the trust score's own farm.
+const recalculateWorkerScore = async (workerId, managerId, scope = {}) => {
+  const trustScore = await TrustScore.findOne({ ...scope, worker: workerId });
   if (!trustScore) return null;
+  const farm = trustScore.farm;
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-  const attendanceRecords = await Attendance.find({ worker: workerId, date: { $gte: thirtyDaysAgo } });
+  const attendanceRecords = await Attendance.find({ farm, worker: workerId, date: { $gte: thirtyDaysAgo } });
   const totalAttendance = attendanceRecords.length;
   const presentCount = attendanceRecords.filter((record) => ['Present', 'Late'].includes(record.status)).length;
   const onTimeCount = attendanceRecords.filter((record) => record.status === 'Present').length;
@@ -19,7 +23,7 @@ const recalculateWorkerScore = async (workerId, managerId) => {
   const attendanceScore = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 100;
   const punctualityScore = presentCount > 0 ? Math.round((onTimeCount / presentCount) * 100) : 100;
 
-  const taskRecords = await Task.find({ assignedTo: workerId, createdAt: { $gte: thirtyDaysAgo } });
+  const taskRecords = await Task.find({ farm, assignedTo: workerId, createdAt: { $gte: thirtyDaysAgo } });
   const totalTasks = taskRecords.length;
   const completedTasks = taskRecords.filter((record) => record.status === 'Completed').length;
   const overdueTasks = taskRecords.filter((record) => record.status === 'Overdue').length;
@@ -28,10 +32,12 @@ const recalculateWorkerScore = async (workerId, managerId) => {
   const responsivenessScore = totalTasks > 0 ? Math.max(0, 100 - Math.round((overdueTasks / totalTasks) * 100)) : 100;
 
   const recentWindow = await Task.find({
+    farm,
     assignedTo: workerId,
     createdAt: { $gte: fourteenDaysAgo }
   });
   const previousWindow = await Task.find({
+    farm,
     assignedTo: workerId,
     createdAt: { $lt: fourteenDaysAgo, $gte: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000) }
   });
@@ -53,6 +59,7 @@ const recalculateWorkerScore = async (workerId, managerId) => {
     const previousScore = trustScore.history.length > 1 ? trustScore.history[trustScore.history.length - 2]?.score : trustScore.overallScore;
     if (Math.abs(trustScore.overallScore - previousScore) >= 10) {
       await Notification.create({
+        farm,
         recipient: managerId,
         type: 'trust_score_change',
         title: 'Trust Score Updated',
@@ -67,7 +74,7 @@ const recalculateWorkerScore = async (workerId, managerId) => {
 
 const recalculateOne = async (req, res) => {
   try {
-    const trustScore = await recalculateWorkerScore(req.params.workerId, req.user.id);
+    const trustScore = await recalculateWorkerScore(req.params.workerId, req.user.id, farmScope(req));
     if (!trustScore) return res.status(404).json({ message: 'Trust score not found' });
     res.json(trustScore);
   } catch (error) {
@@ -77,10 +84,10 @@ const recalculateOne = async (req, res) => {
 
 const recalculateAll = async (req, res) => {
   try {
-    const workers = await User.find({ role: 'worker', isActive: true });
+    const workers = await User.find({ ...farmScope(req), role: 'worker', isActive: true });
     const results = [];
     for (const worker of workers) {
-      const trustScore = await recalculateWorkerScore(worker._id, req.user.id);
+      const trustScore = await recalculateWorkerScore(worker._id, req.user.id, { farm: worker.farm });
       if (trustScore) results.push(trustScore);
     }
     res.json(results);
@@ -91,7 +98,7 @@ const recalculateAll = async (req, res) => {
 
 const getWorkerTrustScore = async (req, res) => {
   try {
-    const trustScore = await TrustScore.findOne({ worker: req.params.workerId }).populate('worker', 'name email position department');
+    const trustScore = await TrustScore.findOne({ ...farmScope(req), worker: req.params.workerId }).populate('worker', 'name email position department');
     if (!trustScore) return res.status(404).json({ message: 'Trust score not found' });
     res.json(trustScore);
   } catch (error) {
@@ -101,7 +108,7 @@ const getWorkerTrustScore = async (req, res) => {
 
 const getAllTrustScores = async (req, res) => {
   try {
-    const trustScores = await TrustScore.find()
+    const trustScores = await TrustScore.find({ ...farmScope(req) })
       .populate('worker', 'name email position department')
       .sort({ overallScore: 1 });
     res.json(trustScores);

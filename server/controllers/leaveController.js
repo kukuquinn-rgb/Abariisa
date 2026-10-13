@@ -1,16 +1,21 @@
 const Leave = require('../models/Leave');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const { farmScope, requireFarmId } = require('../middleware/auth');
 
 const requestLeave = async (req, res) => {
   try {
-    const leave = await Leave.create({ ...req.body, worker: req.user.id });
+    const farm = requireFarmId(req, res);
+    if (!farm) return;
+    // farm and worker are set after the spread so they can't be overridden from the body.
+    const leave = await Leave.create({ ...req.body, worker: req.user.id, farm });
 
-    const worker = await User.findById(req.user.id);
-    const manager = await User.findOne({ role: { $in: ['manager', 'admin'] }, isActive: true });
+    const worker = req.user;
+    const manager = await User.findOne({ farm, role: 'manager', isActive: true });
 
     if (manager) {
       await Notification.create({
+        farm,
         recipient: manager._id,
         type: 'general',
         title: 'Leave Request',
@@ -26,8 +31,8 @@ const requestLeave = async (req, res) => {
 
 const getMyLeave = async (req, res) => {
   try {
-    const leaves = await Leave.find({ worker: req.user.id }).sort({ createdAt: -1 });
-    const approvedAnnual = await Leave.find({ worker: req.user.id, status: 'Approved', leaveType: 'Annual' });
+    const leaves = await Leave.find({ ...farmScope(req), worker: req.user.id }).sort({ createdAt: -1 });
+    const approvedAnnual = await Leave.find({ ...farmScope(req), worker: req.user.id, status: 'Approved', leaveType: 'Annual' });
     const usedDays = approvedAnnual.reduce((sum, item) => sum + (item.days || 0), 0);
     const totalAnnualDays = 21;
     const remainingDays = Math.max(totalAnnualDays - usedDays, 0);
@@ -40,7 +45,7 @@ const getMyLeave = async (req, res) => {
 
 const getAllLeave = async (req, res) => {
   try {
-    const leaves = await Leave.find({}).populate('worker', 'name email').sort({ createdAt: -1 });
+    const leaves = await Leave.find({ ...farmScope(req) }).populate('worker', 'name email').sort({ createdAt: -1 });
     res.json(leaves);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -49,7 +54,7 @@ const getAllLeave = async (req, res) => {
 
 const respondToLeave = async (req, res) => {
   try {
-    const leave = await Leave.findById(req.params.id);
+    const leave = await Leave.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!leave) return res.status(404).json({ message: 'Leave request not found' });
 
     leave.status = req.body.status;
@@ -59,6 +64,7 @@ const respondToLeave = async (req, res) => {
     await leave.save();
 
     await Notification.create({
+      farm: leave.farm,
       recipient: leave.worker,
       type: 'general',
       title: `Leave Request ${req.body.status}`,

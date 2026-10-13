@@ -1,8 +1,10 @@
+const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const TrustScore = require('../models/TrustScore');
 const Notification = require('../models/Notification');
 const SystemConfig = require('../models/SystemConfig');
 const User = require('../models/User');
+const { farmScope, requireFarmId } = require('../middleware/auth');
 
 const DEFAULT_THRESHOLDS = {
   blockHighPriorityBelow: 40,
@@ -10,19 +12,30 @@ const DEFAULT_THRESHOLDS = {
   flagMediumRisk: 70
 };
 
-const getThresholds = async () => {
-  const config = await SystemConfig.findOne({ key: 'trust_thresholds' });
-  const configuredValue = config?.value && typeof config.value === 'object' ? config.value : {};
-  return { ...DEFAULT_THRESHOLDS, ...configuredValue };
+// Thresholds resolve as: built-in defaults < platform default (farm: null) < the farm's own override.
+const getThresholds = async (farmId) => {
+  const asObject = (config) => (config?.value && typeof config.value === 'object' ? config.value : {});
+  const [platform, farm] = await Promise.all([
+    SystemConfig.findOne({ key: 'trust_thresholds', farm: null }),
+    farmId ? SystemConfig.findOne({ key: 'trust_thresholds', farm: farmId }) : null
+  ]);
+  return { ...DEFAULT_THRESHOLDS, ...asObject(platform), ...asObject(farm) };
+};
+
+// The assignee must be an active member of the same farm.
+const findFarmAssignee = async (userId, farmId) => {
+  if (!mongoose.isValidObjectId(userId)) return null;
+  return User.findOne({ _id: userId, farm: farmId, isActive: true }).select('name');
 };
 
 // Helper: recalculate trust score after task event
-const recalculateTrustScore = async (workerId) => {
-  const trustScore = await TrustScore.findOne({ worker: workerId });
+const recalculateTrustScore = async (workerId, farmId) => {
+  const trustScore = await TrustScore.findOne({ worker: workerId, farm: farmId });
   if (!trustScore) return;
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentTasks = await Task.find({
+    farm: farmId,
     assignedTo: workerId,
     createdAt: { $gte: thirtyDaysAgo }
   });
@@ -47,7 +60,7 @@ const recalculateTrustScore = async (workerId) => {
 const getTasks = async (req, res) => {
   try {
     const { status, priority, assignedTo, riskFlag } = req.query;
-    const filter = {};
+    const filter = { ...farmScope(req) };
 
     if (req.user.role === 'worker') filter.assignedTo = req.user.id;
     if (assignedTo && req.user.role !== 'worker') filter.assignedTo = assignedTo;
@@ -70,7 +83,7 @@ const getTasks = async (req, res) => {
 // @route  GET /api/tasks/:id
 const getTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id)
+    const task = await Task.findOne({ _id: req.params.id, ...farmScope(req) })
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name');
     if (!task) return res.status(404).json({ message: 'Task not found' });
@@ -84,12 +97,18 @@ const getTask = async (req, res) => {
 // @route  POST /api/tasks
 const createTask = async (req, res) => {
   try {
+    const farm = requireFarmId(req, res);
+    if (!farm) return;
     const { assignedTo, priority } = req.body;
-    const thresholds = await getThresholds();
+
+    const assignee = await findFarmAssignee(assignedTo, farm);
+    if (!assignee) return res.status(400).json({ message: 'Assigned worker not found on this farm' });
+
+    const thresholds = await getThresholds(farm);
     let riskFlag = null;
 
     if (priority === 'High') {
-      const ts = await TrustScore.findOne({ worker: assignedTo });
+      const ts = await TrustScore.findOne({ farm, worker: assignedTo });
       const workerScore = ts?.overallScore ?? 100;
 
       if (workerScore < thresholds.blockHighPriorityBelow) {
@@ -107,14 +126,16 @@ const createTask = async (req, res) => {
           ? 'Medium'
           : 'Low';
     } else if (priority === 'Medium') {
-      const ts = await TrustScore.findOne({ worker: assignedTo });
+      const ts = await TrustScore.findOne({ farm, worker: assignedTo });
       const workerScore = ts?.overallScore ?? 100;
       riskFlag = workerScore < thresholds.flagHighRisk ? 'Medium' : null;
     }
 
-    const task = await Task.create({ ...req.body, assignedBy: req.user.id, riskFlag });
+    // farm is set after the spread so it can't be supplied from the body.
+    const task = await Task.create({ ...req.body, farm, assignedBy: req.user.id, riskFlag });
 
     await Notification.create({
+      farm,
       recipient: assignedTo,
       type: 'task_assigned',
       title: 'New Task Assigned',
@@ -123,10 +144,10 @@ const createTask = async (req, res) => {
     });
 
     if (riskFlag === 'High' || riskFlag === 'Medium') {
-      const workerScore = (await TrustScore.findOne({ worker: assignedTo }))?.overallScore ?? 'N/A';
-      const workerUser = await User.findById(assignedTo).select('name');
-      const workerName = workerUser?.name ?? 'Unknown worker';
+      const workerScore = (await TrustScore.findOne({ farm, worker: assignedTo }))?.overallScore ?? 'N/A';
+      const workerName = assignee.name ?? 'Unknown worker';
       await Notification.create({
+        farm,
         recipient: req.user.id,
         type: 'risk_alert',
         title: `${riskFlag} Risk Task Flagged`,
@@ -151,11 +172,20 @@ const createTask = async (req, res) => {
 // @route  PUT /api/tasks/:id
 const updateTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
     if (req.user.role === 'worker' && task.assignedTo.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorised to update this task' });
+    }
+
+    // A task can never be moved to another farm, and can only be reassigned within its farm.
+    delete req.body.farm;
+    delete req.body._id;
+    if (req.body.assignedTo && String(req.body.assignedTo) !== String(task.assignedTo)) {
+      if (!(await findFarmAssignee(req.body.assignedTo, task.farm))) {
+        return res.status(400).json({ message: 'Assigned worker not found on this farm' });
+      }
     }
 
     if (req.body.status === 'Completed' && task.status !== 'Completed') {
@@ -166,10 +196,11 @@ const updateTask = async (req, res) => {
     await task.save();
 
     if (['Completed', 'Overdue'].includes(task.status)) {
-      await recalculateTrustScore(task.assignedTo);
+      await recalculateTrustScore(task.assignedTo, task.farm);
 
       const managerId = task.assignedBy;
       await Notification.create({
+        farm: task.farm,
         recipient: managerId,
         type: 'task_updated',
         title: `Task ${task.status}`,
@@ -189,7 +220,7 @@ const updateTask = async (req, res) => {
 // @route  DELETE /api/tasks/:id
 const deleteTask = async (req, res) => {
   try {
-    const task = await Task.findByIdAndDelete(req.params.id);
+    const task = await Task.findOneAndDelete({ _id: req.params.id, ...farmScope(req) });
     if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json({ message: 'Task deleted' });
   } catch (err) {
@@ -201,11 +232,11 @@ const deleteTask = async (req, res) => {
 // @route  GET /api/tasks/stats
 const getTaskStats = async (req, res) => {
   try {
-    const mongoose = require('mongoose');
     const filter = req.user.role === 'worker'
       ? { assignedTo: new mongoose.Types.ObjectId(req.user.id) }
       : {};
     const stats = await Task.aggregate([
+      { $match: farmScope(req) },
       { $match: filter },
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
@@ -220,6 +251,7 @@ const getTaskStats = async (req, res) => {
 const getRiskSummary = async (req, res) => {
   try {
     const riskTasks = await Task.find({
+      ...farmScope(req),
       status: { $ne: 'Completed' },
       riskFlag: { $in: ['High', 'Medium'] }
     })
@@ -229,6 +261,7 @@ const getRiskSummary = async (req, res) => {
       .limit(10);
 
     const riskCountsRaw = await Task.aggregate([
+      { $match: farmScope(req) },
       { $match: { status: { $ne: 'Completed' }, riskFlag: { $in: ['High', 'Medium', 'Low'] } } },
       { $group: { _id: '$riskFlag', count: { $sum: 1 } } }
     ]);
@@ -250,7 +283,7 @@ const getRiskSummary = async (req, res) => {
 // @route  GET /api/tasks/thresholds
 const getThresholdsRoute = async (req, res) => {
   try {
-    res.json(await getThresholds());
+    res.json(await getThresholds(req.farmId));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -280,10 +313,13 @@ const updateThresholds = async (req, res) => {
       return res.status(400).json({ message: 'Threshold values must be numbers between 0 and 100.' });
     }
 
+    // Managers write their farm's override; an admin without ?farm writes the platform default.
+    const farm = req.farmId || null;
     const config = await SystemConfig.findOneAndUpdate(
-      { key: 'trust_thresholds' },
+      { key: 'trust_thresholds', farm },
       {
         key: 'trust_thresholds',
+        farm,
         value: nextThresholds,
         updatedBy: req.user.id,
         description: 'Trust score thresholds'
@@ -309,9 +345,10 @@ const getTaskTrends = async (req, res) => {
       days.push(date);
     }
 
-    const filter = req.user.role === 'worker'
-      ? { assignedTo: req.user.id }
-      : {};
+    const filter = {
+      ...farmScope(req),
+      ...(req.user.role === 'worker' ? { assignedTo: req.user.id } : {})
+    };
 
     const results = await Promise.all(
       days.map(async (day) => {

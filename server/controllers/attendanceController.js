@@ -1,12 +1,15 @@
 const Attendance = require('../models/Attendance');
+const mongoose = require('mongoose');
 const TrustScore = require('../models/TrustScore');
+const User = require('../models/User');
+const { farmScope, requireFarmId } = require('../middleware/auth');
 
 // @desc   Get attendance records
 // @route  GET /api/attendance
 const getAttendance = async (req, res) => {
   try {
     const { workerId, startDate, endDate } = req.query;
-    const filter = {};
+    const filter = { ...farmScope(req) };
 
     if (req.user.role === 'worker') filter.worker = req.user.id;
     else if (workerId) filter.worker = workerId;
@@ -34,13 +37,17 @@ const checkIn = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const existing = await Attendance.findOne({ worker: req.user.id, date: today });
+    const farm = requireFarmId(req, res);
+    if (!farm) return;
+
+    const existing = await Attendance.findOne({ farm, worker: req.user.id, date: today });
     if (existing) return res.status(400).json({ message: 'Already checked in today' });
 
     const scheduledStart = new Date();
     scheduledStart.setHours(7, 0, 0, 0);
 
     const record = await Attendance.create({
+      farm,
       worker: req.user.id,
       date: today,
       checkIn: new Date(),
@@ -48,7 +55,7 @@ const checkIn = async (req, res) => {
       recordedBy: req.user.id
     });
 
-    await updateAttendanceTrustScore(req.user.id);
+    await updateAttendanceTrustScore(req.user.id, farm);
 
     res.status(201).json(record);
   } catch (err) {
@@ -63,7 +70,7 @@ const checkOut = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const record = await Attendance.findOne({ worker: req.user.id, date: today });
+    const record = await Attendance.findOne({ ...farmScope(req), worker: req.user.id, date: today });
     if (!record) return res.status(404).json({ message: 'No check-in found for today' });
     if (record.checkOut) return res.status(400).json({ message: 'Already checked out today' });
 
@@ -79,7 +86,7 @@ const checkOut = async (req, res) => {
 // @route  GET /api/attendance/work-hours
 const getWorkHours = async (req, res) => {
   try {
-    const filter = req.user.role === 'worker' ? { worker: req.user.id } : {};
+    const filter = { ...farmScope(req), ...(req.user.role === 'worker' ? { worker: req.user.id } : {}) };
 
     const records = await Attendance.find(filter).populate('worker', 'name').sort({ date: -1 });
 
@@ -130,7 +137,14 @@ const getWorkHours = async (req, res) => {
 // @route  POST /api/attendance
 const createAttendance = async (req, res) => {
   try {
-    const record = await Attendance.create({ ...req.body, recordedBy: req.user.id });
+    const farm = requireFarmId(req, res);
+    if (!farm) return;
+    const { worker } = req.body;
+    if (!mongoose.isValidObjectId(worker) || !(await User.exists({ _id: worker, farm }))) {
+      return res.status(400).json({ message: 'Worker not found on this farm' });
+    }
+    // farm is set after the spread so it can't be supplied from the body.
+    const record = await Attendance.create({ ...req.body, farm, recordedBy: req.user.id });
     res.status(201).json(record);
   } catch (err) {
     if (err.code === 11000) return res.status(400).json({ message: 'Attendance already recorded for this worker on this date' });
@@ -150,7 +164,7 @@ const getAttendanceTrends = async (req, res) => {
       days.push(date);
     }
 
-    const filter = req.user.role === 'worker' ? { worker: req.user.id } : {};
+    const filter = { ...farmScope(req), ...(req.user.role === 'worker' ? { worker: req.user.id } : {}) };
 
     const results = await Promise.all(
       days.map(async (day) => {
@@ -178,9 +192,9 @@ const getAttendanceTrends = async (req, res) => {
 };
 
 // Helper: update attendance-related trust score components
-const updateAttendanceTrustScore = async (workerId) => {
+const updateAttendanceTrustScore = async (workerId, farmId) => {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const records = await Attendance.find({ worker: workerId, date: { $gte: thirtyDaysAgo } });
+  const records = await Attendance.find({ farm: farmId, worker: workerId, date: { $gte: thirtyDaysAgo } });
 
   if (records.length === 0) return;
 
@@ -190,7 +204,7 @@ const updateAttendanceTrustScore = async (workerId) => {
   const attendanceScore = Math.round((present / records.length) * 100);
   const punctualityScore = present > 0 ? Math.round((onTime / present) * 100) : 100;
 
-  const trustScore = await TrustScore.findOne({ worker: workerId });
+  const trustScore = await TrustScore.findOne({ farm: farmId, worker: workerId });
   if (trustScore) {
     trustScore.attendanceScore = attendanceScore;
     trustScore.punctualityScore = punctualityScore;

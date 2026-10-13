@@ -4,6 +4,8 @@ const Task = require('../models/Task');
 const Livestock = require('../models/Livestock');
 const Attendance = require('../models/Attendance');
 const TrustScore = require('../models/TrustScore');
+const Farm = require('../models/Farm');
+const { farmScope } = require('../middleware/auth');
 
 const handleQuery = async (req, res) => {
   try {
@@ -15,19 +17,22 @@ const handleQuery = async (req, res) => {
     const user = req.user;
     const role = user.role;
     let contextData = '';
+    // Every context query is limited to the caller's farm so the assistant never sees,
+    // or repeats, another farm's data. For an admin with no ?farm filter this is {}.
+    const scope = farmScope(req);
 
     if (role === 'worker') {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const [myTasks, myAttendance, myTrustScore] = await Promise.all([
-        Task.find({ assignedTo: user._id })
+        Task.find({ ...scope, assignedTo: user._id })
           .sort({ dueDate: 1 })
           .limit(20)
           .select('title status priority dueDate category riskFlag completedAt'),
-        Attendance.find({ worker: user._id, date: { $gte: thirtyDaysAgo } })
+        Attendance.find({ ...scope, worker: user._id, date: { $gte: thirtyDaysAgo } })
           .sort({ date: -1 })
           .limit(14)
           .select('date status checkIn checkOut'),
-        TrustScore.findOne({ worker: user._id })
+        TrustScore.findOne({ ...scope, worker: user._id })
       ]);
 
       const pendingTasks = myTasks.filter((t) => t.status === 'Pending');
@@ -52,17 +57,18 @@ ATTENDANCE (last 30 days):
 Present: ${presentDays} days, Late: ${lateDays} days, Absent: ${absentDays} days
 Recent: ${myAttendance.slice(0, 5).map((a) => `${new Date(a.date).toLocaleDateString()}: ${a.status}`).join(', ')}`;
     } else if (role === 'manager') {
-      const [workers, livestock, tasks, riskTasks, trustScores] = await Promise.all([
-        User.find({ role: 'worker', isActive: true }).populate('trustScore').select('name position department trustScore'),
-        Livestock.find({ isArchived: false }).select('animalId species animalType healthStatus location gender'),
-        Task.find({}).populate('assignedTo', 'name').select('title status priority dueDate riskFlag assignedTo category'),
-        Task.find({ riskFlag: { $in: ['High', 'Medium'] }, status: { $nin: ['Completed'] } }).populate('assignedTo', 'name').select('title riskFlag status assignedTo dueDate'),
-        TrustScore.find({}).populate('worker', 'name').sort({ overallScore: 1 })
+      const [farm, workers, livestock, tasks, riskTasks, trustScores] = await Promise.all([
+        Farm.findById(req.farmId).select('name district'),
+        User.find({ ...scope, role: 'worker', isActive: true }).populate('trustScore').select('name position department trustScore'),
+        Livestock.find({ ...scope, isArchived: false }).select('animalId species animalType healthStatus location gender'),
+        Task.find({ ...scope }).populate('assignedTo', 'name').select('title status priority dueDate riskFlag assignedTo category'),
+        Task.find({ ...scope, riskFlag: { $in: ['High', 'Medium'] }, status: { $nin: ['Completed'] } }).populate('assignedTo', 'name').select('title riskFlag status assignedTo dueDate'),
+        TrustScore.find({ ...scope }).populate('worker', 'name').sort({ overallScore: 1 })
       ]);
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayAttendance = await Attendance.find({ date: { $gte: today } }).populate('worker', 'name').select('worker status checkIn');
+      const todayAttendance = await Attendance.find({ ...scope, date: { $gte: today } }).populate('worker', 'name').select('worker status checkIn');
 
       const healthGroups = {};
       livestock.forEach((animal) => {
@@ -79,7 +85,7 @@ Recent: ${myAttendance.slice(0, 5).map((a) => `${new Date(a.date).toLocaleDateSt
       const lowTrustWorkers = trustScores.filter((score) => score.overallScore < 60);
 
       contextData = `
-FARM: ${user.name}'s Farm
+FARM: ${farm?.name || `${user.name}'s Farm`}${farm?.district ? ` (${farm.district})` : ''}
 DATE: ${new Date().toLocaleDateString('en-UG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 
 WORKERS (${workers.length} active):
@@ -102,12 +108,12 @@ AT-RISK TASKS (${riskTasks.length}):
 ${riskTasks.length > 0 ? riskTasks.map((task) => `- "${task.title}" assigned to ${task.assignedTo?.name || 'Unknown'} — ${task.riskFlag} risk, due ${new Date(task.dueDate).toLocaleDateString()}`).join('\n') : 'No active risk-flagged tasks'}`;
     } else if (role === 'admin') {
       const [totalUsers, managers, workers, activeUsers, totalLivestock, totalTasks] = await Promise.all([
-        User.countDocuments({}),
-        User.countDocuments({ role: 'manager' }),
-        User.countDocuments({ role: 'worker' }),
-        User.countDocuments({ isActive: true }),
-        Livestock.countDocuments({ isArchived: false }),
-        Task.countDocuments({})
+        User.countDocuments({ ...scope }),
+        User.countDocuments({ ...scope, role: 'manager' }),
+        User.countDocuments({ ...scope, role: 'worker' }),
+        User.countDocuments({ ...scope, isActive: true }),
+        Livestock.countDocuments({ ...scope, isArchived: false }),
+        Task.countDocuments({ ...scope })
       ]);
 
       contextData = `

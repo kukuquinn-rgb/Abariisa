@@ -1,14 +1,25 @@
 const WorkPlan = require('../models/WorkPlan');
 const Notification = require('../models/Notification');
+const mongoose = require('mongoose');
 const User = require('../models/User');
+const { farmScope, requireFarmId } = require('../middleware/auth');
 
 const createWorkPlan = async (req, res) => {
   try {
-    const plan = await WorkPlan.create({ ...req.body, createdBy: req.user.id });
-    const worker = await User.findById(req.body.assignedTo);
+    const farm = requireFarmId(req, res);
+    if (!farm) return;
+    const { assignedTo } = req.body;
+    const worker = mongoose.isValidObjectId(assignedTo)
+      ? await User.findOne({ _id: assignedTo, farm })
+      : null;
+    if (!worker) return res.status(400).json({ message: 'Assigned worker not found on this farm' });
+
+    // farm is set after the spread so it can't be supplied from the body.
+    const plan = await WorkPlan.create({ ...req.body, farm, createdBy: req.user.id });
 
     if (worker) {
       await Notification.create({
+        farm,
         recipient: worker._id,
         type: 'task_assigned',
         title: 'New Work Plan',
@@ -25,7 +36,7 @@ const createWorkPlan = async (req, res) => {
 const getWorkPlans = async (req, res) => {
   try {
     const { date } = req.query;
-    const filter = date ? { date: new Date(date) } : {};
+    const filter = { ...farmScope(req), ...(date ? { date: new Date(date) } : {}) };
 
     if (req.user.role === 'worker') {
       filter.assignedTo = req.user.id;
@@ -44,7 +55,7 @@ const getWorkPlans = async (req, res) => {
 
 const updateActivity = async (req, res) => {
   try {
-    const plan = await WorkPlan.findById(req.params.planId);
+    const plan = await WorkPlan.findOne({ _id: req.params.planId, ...farmScope(req) });
     if (!plan) return res.status(404).json({ message: 'Work plan not found' });
 
     const activity = plan.activities.id(req.params.activityId);
@@ -55,8 +66,9 @@ const updateActivity = async (req, res) => {
     activity.completedAt = req.body.status === 'Completed' ? new Date() : activity.completedAt;
 
     if (req.body.leakPoint) {
-      const worker = await User.findById(req.user.id);
+      const worker = req.user;
       await Notification.create({
+        farm: plan.farm,
         recipient: plan.createdBy,
         type: 'risk_alert',
         title: 'Leak Point Reported',

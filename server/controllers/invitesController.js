@@ -1,13 +1,14 @@
 const Invite = require('../models/Invite');
 const User = require('../models/User');
 const Farm = require('../models/Farm');
+const { farmScope } = require('../middleware/auth');
 
-// Managers invite to their own farm. Admins (no farm) must name the farm explicitly.
+// Managers invite to their own farm (req.farmId from scopeFarm).
+// Admins have no farm and must name one with ?farm=<id>.
 const resolveInviteFarm = async (req) => {
-  if (req.user.role !== 'admin') return req.user.farm || null;
-  const farmId = req.body.farm || req.query.farm;
-  if (!farmId) return null;
-  const farm = await Farm.findById(farmId).select('_id');
+  if (!req.farmId) return null;
+  if (req.user.role !== 'admin') return req.farmId;
+  const farm = await Farm.findById(req.farmId).select('_id');
   return farm ? farm._id : null;
 };
 
@@ -23,7 +24,7 @@ const createInvite = async (req, res) => {
 
     const farm = await resolveInviteFarm(req);
     if (!farm) {
-      return res.status(400).json({ message: req.user.role === 'admin' ? 'Specify a valid farm for this invite' : 'No farm linked to this account' });
+      return res.status(400).json({ message: req.user.role === 'admin' ? 'Specify a valid farm (?farm=<id>) for this invite' : 'No farm linked to this account' });
     }
 
     const code = Invite.generateCode();
@@ -46,12 +47,7 @@ const createInvite = async (req, res) => {
 // @route  GET /api/invites
 const getMyInvites = async (req, res) => {
   try {
-    const filter = {};
-    if (req.user.role === 'admin') {
-      if (req.query.farm) filter.farm = req.query.farm;
-    } else {
-      filter.farm = req.user.farm;
-    }
+    const filter = { ...farmScope(req) };
     if (req.query.role) filter.role = req.query.role;
     const invites = await Invite.find(filter)
       .populate('usedBy', 'name email')
@@ -67,9 +63,7 @@ const getMyInvites = async (req, res) => {
 // @route  DELETE /api/invites/:id
 const revokeInvite = async (req, res) => {
   try {
-    const filter = { _id: req.params.id };
-    if (req.user.role !== 'admin') filter.farm = req.user.farm;
-    const invite = await Invite.findOne(filter);
+    const invite = await Invite.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!invite) return res.status(404).json({ message: 'Invite not found' });
     if (invite.used) return res.status(400).json({ message: 'Invite already used' });
     await invite.deleteOne();

@@ -1,10 +1,11 @@
 const Notification = require('../models/Notification');
+const { farmScope } = require('../middleware/auth');
 
 // @desc   Get notifications for logged-in user
 // @route  GET /api/notifications
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user.id })
+    const notifications = await Notification.find({ ...farmScope(req), recipient: req.user.id })
       .sort({ createdAt: -1 })
       .limit(50);
     res.json(notifications);
@@ -18,7 +19,7 @@ const getNotifications = async (req, res) => {
 const markRead = async (req, res) => {
   try {
     const notif = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipient: req.user.id },
+      { _id: req.params.id, ...farmScope(req), recipient: req.user.id },
       { isRead: true },
       { new: true }
     );
@@ -33,7 +34,7 @@ const markRead = async (req, res) => {
 // @route  PUT /api/notifications/read-all
 const markAllRead = async (req, res) => {
   try {
-    await Notification.updateMany({ recipient: req.user.id, isRead: false }, { isRead: true });
+    await Notification.updateMany({ ...farmScope(req), recipient: req.user.id, isRead: false }, { isRead: true });
     res.json({ message: 'All notifications marked as read' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -44,7 +45,7 @@ const markAllRead = async (req, res) => {
 // @route  GET /api/notifications/unread-count
 const unreadCount = async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ recipient: req.user.id, isRead: false });
+    const count = await Notification.countDocuments({ ...farmScope(req), recipient: req.user.id, isRead: false });
     res.json({ count });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -2,13 +2,14 @@ const Livestock = require('../models/Livestock');
 const Notification = require('../models/Notification');
 const Task = require('../models/Task');
 const User = require('../models/User');
+const { farmScope, requireFarmId } = require('../middleware/auth');
 
 // @desc   Get all livestock (with filters)
 // @route  GET /api/livestock
 const getLivestock = async (req, res) => {
   try {
     const { species, healthStatus, search } = req.query;
-    const filter = { isArchived: false };
+    const filter = { ...farmScope(req), isArchived: false };
 
     if (species) filter.species = species;
     if (healthStatus) filter.healthStatus = healthStatus;
@@ -28,7 +29,7 @@ const getLivestock = async (req, res) => {
 // @route  GET /api/livestock/:id
 const getLivestockById = async (req, res) => {
   try {
-    const animal = await Livestock.findById(req.params.id).populate('addedBy', 'name');
+    const animal = await Livestock.findOne({ _id: req.params.id, ...farmScope(req) }).populate('addedBy', 'name');
     if (!animal) return res.status(404).json({ message: 'Livestock record not found' });
     res.json(animal);
   } catch (err) {
@@ -40,10 +41,13 @@ const getLivestockById = async (req, res) => {
 // @route  POST /api/livestock
 const addLivestock = async (req, res) => {
   try {
-    const animal = await Livestock.create({ ...req.body, addedBy: req.user.id });
+    const farm = requireFarmId(req, res);
+    if (!farm) return;
+    // farm is set after the spread so it can't be supplied from the body.
+    const animal = await Livestock.create({ ...req.body, farm, addedBy: req.user.id });
     res.status(201).json(animal);
   } catch (err) {
-    if (err.code === 11000) return res.status(400).json({ message: 'Animal ID already exists' });
+    if (err.code === 11000) return res.status(400).json({ message: 'Animal ID already exists on this farm' });
     res.status(500).json({ message: err.message });
   }
 };
@@ -52,10 +56,13 @@ const addLivestock = async (req, res) => {
 // @route  PUT /api/livestock/:id
 const updateLivestock = async (req, res) => {
   try {
-    const animal = await Livestock.findById(req.params.id).populate('addedBy');
+    const animal = await Livestock.findOne({ _id: req.params.id, ...farmScope(req) }).populate('addedBy');
     if (!animal) return res.status(404).json({ message: 'Livestock record not found' });
 
     const previousHealthStatus = animal.healthStatus;
+    // An animal can never be moved to another farm through an update.
+    delete req.body.farm;
+    delete req.body._id;
     Object.assign(animal, req.body);
     await animal.save();
 
@@ -67,6 +74,7 @@ const updateLivestock = async (req, res) => {
       if (manager) {
         const managerId = manager._id || manager;
         await Notification.create({
+          farm: animal.farm,
           recipient: managerId,
           type: 'livestock_alert',
           title: 'Animal Health Alert',
@@ -74,9 +82,10 @@ const updateLivestock = async (req, res) => {
         });
       }
 
-      const worker = await User.findOne({ role: 'worker', isActive: true });
+      const worker = await User.findOne({ farm: animal.farm, role: 'worker', isActive: true });
       if (worker) {
         const task = await Task.create({
+          farm: animal.farm,
           title: `Health check — ${animal.animalId} (${animal.species})`,
           description: `${animal.animalId} has been flagged as ${animal.healthStatus}. Please monitor closely and report any changes to the farm manager.`,
           priority: animal.healthStatus === 'Sick' ? 'High' : 'Medium',
@@ -88,6 +97,7 @@ const updateLivestock = async (req, res) => {
         });
 
         await Notification.create({
+          farm: animal.farm,
           recipient: worker._id,
           type: 'task_assigned',
           title: 'New Health Check Task',
@@ -107,8 +117,8 @@ const updateLivestock = async (req, res) => {
 // @route  DELETE /api/livestock/:id
 const archiveLivestock = async (req, res) => {
   try {
-    const animal = await Livestock.findByIdAndUpdate(
-      req.params.id,
+    const animal = await Livestock.findOneAndUpdate(
+      { _id: req.params.id, ...farmScope(req) },
       { isArchived: true },
       { new: true }
     );
@@ -123,7 +133,7 @@ const archiveLivestock = async (req, res) => {
 // @route  POST /api/livestock/:id/vaccinations
 const addVaccination = async (req, res) => {
   try {
-    const animal = await Livestock.findById(req.params.id);
+    const animal = await Livestock.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!animal) return res.status(404).json({ message: 'Livestock record not found' });
     animal.vaccinationHistory.push(req.body);
     await animal.save();
@@ -137,7 +147,7 @@ const addVaccination = async (req, res) => {
 // @route  POST /api/livestock/:id/daily-check
 const addDailyCheck = async (req, res) => {
   try {
-    const animal = await Livestock.findById(req.params.id);
+    const animal = await Livestock.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!animal) return res.status(404).json({ message: 'Animal not found' });
 
     animal.dailyChecks.push({ ...req.body, checkedBy: req.user.id });
@@ -145,6 +155,7 @@ const addDailyCheck = async (req, res) => {
     if (req.body.isMissing) {
       animal.healthStatus = 'Sick';
       await Notification.create({
+        farm: animal.farm,
         recipient: animal.addedBy,
         type: 'livestock_alert',
         title: 'Missing Animal Alert',
@@ -163,7 +174,7 @@ const addDailyCheck = async (req, res) => {
 // @route  POST /api/livestock/:id/treatments
 const addTreatment = async (req, res) => {
   try {
-    const animal = await Livestock.findById(req.params.id);
+    const animal = await Livestock.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!animal) return res.status(404).json({ message: 'Animal not found' });
 
     animal.treatments.push(req.body);
@@ -171,6 +182,7 @@ const addTreatment = async (req, res) => {
 
     if (req.body.nextDueDate) {
       await Notification.create({
+        farm: animal.farm,
         recipient: animal.addedBy,
         type: 'livestock_alert',
         title: `${req.body.type} Scheduled`,
@@ -188,7 +200,7 @@ const addTreatment = async (req, res) => {
 // @route  POST /api/livestock/:id/matings
 const addMating = async (req, res) => {
   try {
-    const animal = await Livestock.findById(req.params.id);
+    const animal = await Livestock.findOne({ _id: req.params.id, ...farmScope(req) });
     if (!animal) return res.status(404).json({ message: 'Animal not found' });
 
     const gestationDays = {
@@ -210,6 +222,7 @@ const addMating = async (req, res) => {
     await animal.save();
 
     await Notification.create({
+      farm: animal.farm,
       recipient: animal.addedBy,
       type: 'livestock_alert',
       title: 'Pregnancy Recorded',
@@ -227,7 +240,7 @@ const addMating = async (req, res) => {
 const getDueTreatments = async (req, res) => {
   try {
     const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const animals = await Livestock.find({ isArchived: false });
+    const animals = await Livestock.find({ ...farmScope(req), isArchived: false });
     const due = [];
 
     animals.forEach((animal) => {
@@ -269,7 +282,7 @@ const getDueTreatments = async (req, res) => {
 // @route  GET /api/livestock/pregnancies
 const getPregnancies = async (req, res) => {
   try {
-    const animals = await Livestock.find({ isArchived: false });
+    const animals = await Livestock.find({ ...farmScope(req), isArchived: false });
     const pregnancies = [];
 
     animals.forEach((animal) => {
@@ -301,12 +314,14 @@ const getPregnancies = async (req, res) => {
 // @route  GET /api/livestock/stats
 const getLivestockStats = async (req, res) => {
   try {
-    const total = await Livestock.countDocuments({ isArchived: false });
+    const total = await Livestock.countDocuments({ ...farmScope(req), isArchived: false });
     const bySpecies = await Livestock.aggregate([
+      { $match: farmScope(req) },
       { $match: { isArchived: false } },
       { $group: { _id: '$species', count: { $sum: 1 } } }
     ]);
     const byHealth = await Livestock.aggregate([
+      { $match: farmScope(req) },
       { $match: { isArchived: false } },
       { $group: { _id: '$healthStatus', count: { $sum: 1 } } }
     ]);

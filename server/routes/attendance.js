@@ -8,13 +8,13 @@ const {
   getWorkHours,
   getAttendanceTrends
 } = require('../controllers/attendanceController');
-const { protect, authorise, blockViewOnly } = require('../middleware/auth');
+const { protect, scopeFarm, authorise, blockViewOnly } = require('../middleware/auth');
 
-router.get('/trends', protect, getAttendanceTrends);
-router.get('/work-hours', protect, getWorkHours);
-router.get('/', protect, getAttendance);
-router.post('/checkin', protect, blockViewOnly, checkIn);
-router.put('/checkout', protect, blockViewOnly, checkOut);
-router.post('/', protect, authorise('manager', 'admin'), blockViewOnly, createAttendance);
+router.get('/trends', protect, scopeFarm, getAttendanceTrends);
+router.get('/work-hours', protect, scopeFarm, getWorkHours);
+router.get('/', protect, scopeFarm, getAttendance);
+router.post('/checkin', protect, scopeFarm, blockViewOnly, checkIn);
+router.put('/checkout', protect, scopeFarm, blockViewOnly, checkOut);
+router.post('/', protect, scopeFarm, authorise('manager', 'admin'), blockViewOnly, createAttendance);
 
 module.exports = router;
