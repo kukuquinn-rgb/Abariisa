@@ -80,12 +80,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to right,
-    rgba(120, 53, 15, 0.70) 0%,
-    rgba(20, 70, 40, 0.75) 25%,
-    rgba(20, 70, 40, 0.75) 100%
-  );
+  background: rgba(20, 83, 45, 0.70);
 }
 
 .auth-form-container {
@@ -131,14 +126,6 @@
     min-height: 280px;
   }
   .auth-panel-form { padding: var(--space-6) var(--space-4); }
-  .auth-panel-form::before {
-    background: linear-gradient(
-      to bottom,
-      rgba(120, 53, 15, 0.70) 0%,
-      rgba(20, 70, 40, 0.75) 25%,
-      rgba(20, 70, 40, 0.75) 100%
-    );
-  }
   .auth-form-container { padding: var(--space-6); }
 }
 
