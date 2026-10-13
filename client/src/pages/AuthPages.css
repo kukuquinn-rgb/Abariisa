@@ -80,7 +80,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(248, 250, 252, 0.82);
+  background: rgba(20, 83, 45, 0.70);
 }
 
 .auth-form-container {
